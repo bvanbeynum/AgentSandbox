@@ -1,0 +1,17 @@
+services:
+  # Node.js Developer Agent
+  node-developer:
+    build: 
+      context: .
+      dockerfile: Dockerfile.nodeDev
+    container_name: nodeAgent
+    network_mode: "host"
+    environment:
+      - AGENT_ROLE=Node.js Developer
+    restart: always
+    volumes:
+      - ./workspace:/app/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 512mb
