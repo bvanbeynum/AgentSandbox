@@ -9,11 +9,11 @@ export class BaseAgent {
 		this.tools = tools;
 		this.skills = skills;
 
-		// Initialize Gemini with System Instructions (The "persona" of the agent)
+		// Initialize Gemini with System Instruction (The "persona" of the agent)
 		this.genAI = new GoogleGenerativeAI(config.ai.key);
 		this.model = this.genAI.getGenerativeModel({ 
 			model: "gemini-2.5-flash",
-			systemInstructions: this.instructions // This ensures the instructions are always part of the context for reasoning
+			systemInstruction: this.instructions // This ensures the instructions are always part of the context for reasoning
 		});
 	}
 
@@ -78,15 +78,23 @@ export class BaseAgent {
 			{ $set: { status: "active", startedAt: new Date() } }
 		);
 
-		const result = await this.executeReasoning(task.payload);
+		const result = await this.executeReasoning({ 
+			...task.payload, 
+			taskId: task._id.toString(),
+			metadata: task.metadata
+		});
 
-		await this.tasksCollection.updateOne(
-			{ _id: task._id }, 
-			{ $set: { 
-				status: "done", 
-				result: result, 
-				completedAt: new Date() 
-			}}
-		);
+		// Only set to "done" if a tool didn't already change the status (e.g., to "awaiting_user_input")
+		const currentTask = await this.tasksCollection.findOne({ _id: task._id });
+		if (currentTask.status === "active") {
+			await this.tasksCollection.updateOne(
+				{ _id: task._id }, 
+				{ $set: { 
+					status: "done", 
+					result: result, 
+					completedAt: new Date() 
+				}}
+			);
+		}
 	}
 }

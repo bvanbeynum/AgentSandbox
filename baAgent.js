@@ -33,7 +33,13 @@ class BusinessAnalystAgent extends BaseAgent {
 		while (!isComplete) {
 			try {
 				const result = await chat.sendMessage(context);
-				const call = result.response.candidates[0].content.parts.find(part => part.functionCall);
+				const response = result.response;
+				const text = response.text();
+				const call = response.candidates[0].content.parts.find(part => part.functionCall);
+
+				if (text && text.trim()) {
+					await this.log(taskId, "info", "BA Reasoning Output", { text });
+				}
 
 				if (call) {
 					const { name, args } = call.functionCall;
@@ -63,7 +69,7 @@ class BusinessAnalystAgent extends BaseAgent {
 					}];
 				}
 				else {
-					finalResponse = result.response.text();
+					finalResponse = text;
 					isComplete = true;
 				}
 			} catch (error) {
