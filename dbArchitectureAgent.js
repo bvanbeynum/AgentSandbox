@@ -1,7 +1,6 @@
-import { BaseAgent } from "./core/agentCore.js";
+import { BaseAgent } from "./agentCore.js";
 import { agentInstructions } from "./instructions/dbArchitectInstructions.js";
-import { toolHandlers, nodeTools } from "./tools/nodeDeveloperTools.js";
-import { baToolHandlers } from "./tools/baTools.js";
+import { commonTools, commonToolHandlers } from "./tools/common.js";
 
 class DatabaseArchitectAgent extends BaseAgent {
 
@@ -30,13 +29,7 @@ class DatabaseArchitectAgent extends BaseAgent {
 				const { name, args } = call.functionCall;
 				console.log(`[DB Architect] Executing Tool: ${name}`);
 
-				let toolResult;
-				// Logic to route tool calls to the correct handler
-				if (name === "assignTask") {
-					toolResult = await baToolHandlers.assignTask(args);
-				} else {
-					toolResult = await toolHandlers[name](args);
-				}
+				const toolResult = await commonToolHandlers[name](args);
 
 				message = [{ functionResponse: { name, response: toolResult } }];
 			} else {
@@ -49,5 +42,5 @@ class DatabaseArchitectAgent extends BaseAgent {
 	}
 }
 
-const agent = new DatabaseArchitectAgent("Database Architect", agentInstructions, nodeTools);
+const agent = new DatabaseArchitectAgent("Database Architect", agentInstructions, commonTools);
 agent.initialize();

@@ -1,6 +1,10 @@
-import { BaseAgent } from "./core/agentCore.js";
-import { baTools, baToolHandlers } from "./tools/baTools.js";
-import { agentInstructions } from "./instructions/baAgentInstructions.js";
+import { BaseAgent } from "./agentCore.js";
+import { commonTools, commonToolHandlers } from "./tools/common.js";
+import { baTools, baToolHandlers } from "./tools/baTool.js";
+import { agentInstructions } from "./instructions/baInstructions.js";
+
+const allTools = [...commonTools, ...baTools];
+const allHandlers = { ...commonToolHandlers, ...baToolHandlers };
 
 class BusinessAnalystAgent extends BaseAgent {
 
@@ -14,7 +18,7 @@ class BusinessAnalystAgent extends BaseAgent {
 		await this.log(taskId, "info", "Starting requirement analysis", { instruction: payload.instruction });
 
 		// We pass the context: the initial prompt PLUS any previous responses from the user
-		const context = `
+		let context = `
 			User Request: ${payload.instruction}
 			Previous User Responses: ${payload.userResponses || "None yet."}
 		`;
@@ -35,7 +39,7 @@ class BusinessAnalystAgent extends BaseAgent {
 					await this.log(taskId, "debug", `BA Executing Tool: ${name}`, { args });
 
 					// We pass the task ID so the tool can update the specific record
-					const toolResult = await baToolHandlers[name]({ ...args, taskId: payload.taskId });
+					const toolResult = await allHandlers[name]({ ...args, taskId: payload.taskId });
 
 					await this.log(taskId, "debug", `BA Tool Result: ${name}`, { toolResult });
 
@@ -66,5 +70,5 @@ class BusinessAnalystAgent extends BaseAgent {
 	}
 }
 
-const agent = new BusinessAnalystAgent("Business Analyst", agentInstructions, baTools, baSkills);
+const agent = new BusinessAnalystAgent("Business Analyst", agentInstructions, allTools);
 agent.initialize();

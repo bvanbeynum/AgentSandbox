@@ -1,7 +1,6 @@
-import { BaseAgent } from "./core/agentCore.js";
+import { BaseAgent } from "./agentCore.js";
 import { agentInstructions } from "./instructions/softwareArchitectInstructions.js";
-import { nodeTools, toolHandlers } from "./tools/nodeDeveloperTools.js"; // Reusing FS tools
-import { baToolHandlers } from "./tools/baTools.js"; // Reusing assignTask
+import { commonTools, commonToolHandlers } from "./tools/common.js";
 
 class SoftwareArchitectAgent extends BaseAgent {
 
@@ -23,14 +22,9 @@ class SoftwareArchitectAgent extends BaseAgent {
 			const { name, args } = call.functionCall;
 			
 			// Handle the generic tools
-			let toolResult;
-			if (name === "assignTask") {
-				toolResult = await baToolHandlers.assignTask(args);
-			} else {
-				toolResult = await toolHandlers[name](args);
-			}
+			const toolResult = await commonToolHandlers[name](args);
 			
-			return toolResult.message;
+			return toolResult.message || toolResult.status;
 		}
 
 		return result.response.text();
@@ -38,5 +32,5 @@ class SoftwareArchitectAgent extends BaseAgent {
 
 }
 
-const agent = new SoftwareArchitectAgent("Software Architect", agentInstructions, nodeTools);
+const agent = new SoftwareArchitectAgent("Software Architect", agentInstructions, commonTools);
 agent.initialize();

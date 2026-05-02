@@ -1,6 +1,10 @@
 import { BaseAgent } from "./agentCore.js";
-import { projectSetupInstructions } from "./instructions/projectSetupInstructions.js";
-import { setupTools, setupToolHandlers } from "./tools/projectSetupTools.js";
+import { agentInstructions } from "./instructions/projectSetupInstructions.js";
+import { commonTools, commonToolHandlers } from "./tools/common.js";
+import { projectSetupTools, projectSetupToolHandlers } from "./tools/projectSetupTool.js";
+
+const allTools = [...commonTools, ...projectSetupTools];
+const allHandlers = { ...commonToolHandlers, ...projectSetupToolHandlers };
 
 class ProjectSetupAgent extends BaseAgent {
 
@@ -37,7 +41,7 @@ class ProjectSetupAgent extends BaseAgent {
 					const { name, args } = call.functionCall;
 					await this.log(taskId, "debug", `Setup Agent Tool: ${name}`, { args });
 
-					const toolResult = await setupToolHandlers[name]({ ...args, taskId });
+					const toolResult = await allHandlers[name]({ ...args, taskId });
 					await this.log(taskId, "debug", `Setup Agent Tool Result: ${name}`, { toolResult });
 
 					currentPrompt = [{ functionResponse: { name, response: toolResult } }];
@@ -57,5 +61,5 @@ class ProjectSetupAgent extends BaseAgent {
 	}
 }
 
-const agent = new ProjectSetupAgent("Project Setup Developer", agentInstructions, setupTools);
+const agent = new ProjectSetupAgent("Project Setup Developer", agentInstructions, allTools);
 agent.initialize();

@@ -1,7 +1,6 @@
-import { BaseAgent } from "./core/agentCore.js";
-import { agentInstructions } from "./networkInstructions.js";
-import { toolHandlers, nodeTools } from "./tools/nodeDeveloperTools.js";
-import { baToolHandlers } from "./tools/baTools.js";
+import { BaseAgent } from "./agentCore.js";
+import { agentInstructions } from "./instructions/netArchitectInstructions.js";
+import { commonTools, commonToolHandlers } from "./tools/common.js";
 
 class NetworkArchitectAgent extends BaseAgent {
 
@@ -32,12 +31,7 @@ class NetworkArchitectAgent extends BaseAgent {
 				const { name, args } = call.functionCall;
 				console.log(`[Network Architect] Executing Tool: ${name}`);
 
-				let toolResult;
-				if (name === "assignTask") {
-					toolResult = await baToolHandlers.assignTask(args);
-				} else {
-					toolResult = await toolHandlers[name](args);
-				}
+				const toolResult = await commonToolHandlers[name](args);
 
 				message = [{ functionResponse: { name, response: toolResult } }];
 			} else {
@@ -50,5 +44,5 @@ class NetworkArchitectAgent extends BaseAgent {
 	}
 }
 
-const agent = new NetworkArchitectAgent("Network Architect", agentInstructions, nodeTools);
+const agent = new NetworkArchitectAgent("Network Architect", agentInstructions, commonTools);
 agent.initialize();

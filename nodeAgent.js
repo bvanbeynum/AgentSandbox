@@ -1,5 +1,5 @@
 import { BaseAgent } from "./agentCore.js";
-import { toolHandlers, nodeTools } from "./tools/nodeAgentTools.js";
+import { commonTools, commonToolHandlers } from "./tools/common.js";
 import { nodeSkills } from "./skills/nodeAgentSkills.js";
 import { agentInstructions } from "./instructions/nodeAgentInstructions.js";
 
@@ -7,7 +7,7 @@ class NodeDeveloperAgent extends BaseAgent {
 
 	async executeReasoning(payload) {
 		const chat = this.model.startChat({
-			tools: [{ functionDeclarations: nodeTools }]
+			tools: [{ functionDeclarations: this.tools }]
 		});
 
 		let message = payload.instruction;
@@ -20,7 +20,7 @@ class NodeDeveloperAgent extends BaseAgent {
 			if (call) {
 				const { name, args } = call.functionCall;
 				console.log(`[${this.role}] Executing Tool: ${name}`);
-				const toolResult = await toolHandlers[name](args);
+				const toolResult = await commonToolHandlers[name](args);
 				
 				message = [{
 					functionResponse: { name, response: toolResult }
@@ -34,5 +34,5 @@ class NodeDeveloperAgent extends BaseAgent {
 
 }
 
-const agent = new NodeDeveloperAgent("Node.js Developer", agentInstructions, nodeTools, nodeSkills);
+const agent = new NodeDeveloperAgent("Node.js Developer", agentInstructions, commonTools, nodeSkills);
 agent.initialize();
