@@ -12,7 +12,9 @@ export const projectSetupTools = [
 					type: "array", 
 					items: { type: "string" },
 					description: "List of paths like ['src/models', 'src/routes']"
-				}
+				},
+				projectName: { type: "string" },
+				isInternal: { type: "boolean" }
 			},
 			required: ["directories"]
 		}
@@ -20,11 +22,12 @@ export const projectSetupTools = [
 ];
 
 export const projectSetupToolHandlers = {
-	createDirectoryStructure: async ({ directories }) => {
+	createDirectoryStructure: async ({ directories, projectName, isInternal = false }) => {
+		const baseDir = isInternal ? config.paths.internal : `${config.paths.projects}/${projectName}`;
 		for (const dir of directories) {
-			const path = `${config.agentDefaults.workspaceDir}/${dir}`;
+			const path = `${baseDir}/${dir}`;
 			await fs.mkdir(path, { recursive: true });
 		}
-		return { status: "success", message: `Directories created: ${directories.join(", ")}` };
+		return { status: "success", message: `Directories created for project ${projectName}: ${directories.join(", ")}` };
 	}
 };

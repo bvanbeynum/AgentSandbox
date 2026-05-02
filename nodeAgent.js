@@ -6,11 +6,14 @@ import { agentInstructions } from "./instructions/nodeAgentInstructions.js";
 class NodeDeveloperAgent extends BaseAgent {
 
 	async executeReasoning(payload) {
+		const taskId = payload.taskId;
+		const projectName = payload.metadata?.projectName || "default-project";
+
 		const chat = this.model.startChat({
 			tools: [{ functionDeclarations: this.tools }]
 		});
 
-		let message = payload.instruction;
+		let message = `Project Name: ${projectName}\nInstruction: ${payload.instruction}`;
 		let isComplete = false;
 
 		while (!isComplete) {
@@ -20,7 +23,12 @@ class NodeDeveloperAgent extends BaseAgent {
 			if (call) {
 				const { name, args } = call.functionCall;
 				console.log(`[${this.role}] Executing Tool: ${name}`);
-				const toolResult = await commonToolHandlers[name](args);
+				const toolResult = await commonToolHandlers[name]({ 
+					...args, 
+					taskId, 
+					projectName, 
+					metadata: payload.metadata 
+				});
 				
 				message = [{
 					functionResponse: { name, response: toolResult }

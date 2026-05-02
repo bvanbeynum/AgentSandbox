@@ -5,11 +5,15 @@ import { commonTools, commonToolHandlers } from "./tools/common.js";
 class NetworkArchitectAgent extends BaseAgent {
 
 	async executeReasoning(payload) {
+		const taskId = payload.taskId;
+		const projectName = payload.metadata?.projectName || "default-project";
+
 		const chat = this.model.startChat({
 			tools: [{ functionDeclarations: this.tools }]
 		});
 
 		const context = `
+			Project Name: ${projectName}
 			Feature Context: ${payload.instruction}
 			Input Requirements:
 			- PRD Location: workspace/prds/
@@ -31,7 +35,12 @@ class NetworkArchitectAgent extends BaseAgent {
 				const { name, args } = call.functionCall;
 				console.log(`[Network Architect] Executing Tool: ${name}`);
 
-				const toolResult = await commonToolHandlers[name](args);
+				const toolResult = await commonToolHandlers[name]({
+					...args,
+					taskId,
+					projectName,
+					metadata: payload.metadata
+				});
 
 				message = [{ functionResponse: { name, response: toolResult } }];
 			} else {

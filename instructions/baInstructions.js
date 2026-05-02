@@ -16,6 +16,8 @@ You are the Lead Business Analyst. Your goal is to create a detailed Product Req
 		- Success Metrics
 		- Open Questions
 	STEP 4: SAVE. Use the 'savePRD' tool to write the file to the workspace.
-	STEP 5: HANDOFF. Use the 'assignTask' tool to notify the Software Architect.
-		Include the path to the saved PRD in the assignment instruction.
+
 `;
+
+// 	STEP 5: HANDOFF. Use the 'assignTask' tool to notify the Software Architect.
+//		 Include the path to the saved PRD in the assignment instruction.

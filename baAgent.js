@@ -10,15 +10,17 @@ class BusinessAnalystAgent extends BaseAgent {
 
 	async executeReasoning(payload) {
 		const taskId = payload.taskId;
+		const projectName = payload.metadata?.projectName || "default-project";
 
 		const chat = this.model.startChat({
 			tools: [{ functionDeclarations: this.tools }]
 		});
 
-		await this.log(taskId, "info", "Starting requirement analysis", { instruction: payload.instruction });
+		await this.log(taskId, "info", `Starting requirement analysis for project: ${projectName}`, { instruction: payload.instruction });
 
 		// We pass the context: the initial prompt PLUS any previous responses from the user
 		let context = `
+			Project Name: ${projectName}
 			User Request: ${payload.instruction}
 			Previous User Responses: ${payload.userResponses || "None yet."}
 		`;
@@ -38,8 +40,13 @@ class BusinessAnalystAgent extends BaseAgent {
 
 					await this.log(taskId, "debug", `BA Executing Tool: ${name}`, { args });
 
-					// We pass the task ID so the tool can update the specific record
-					const toolResult = await allHandlers[name]({ ...args, taskId: payload.taskId });
+					// We pass the task ID, projectName and metadata so the tools can update records and target folders
+					const toolResult = await allHandlers[name]({ 
+						...args, 
+						taskId, 
+						projectName, 
+						metadata: payload.metadata 
+					});
 
 					await this.log(taskId, "debug", `BA Tool Result: ${name}`, { toolResult });
 

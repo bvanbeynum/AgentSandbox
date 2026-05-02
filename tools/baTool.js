@@ -23,7 +23,9 @@ export const baTools = [
 			properties: {
 				featureName: { type: "string" },
 				content: { type: "string" },
-				directory: { type: "string", description: "The directory path to save in." }
+				directory: { type: "string", description: "The directory path to save in (relative to project root)." },
+				projectName: { type: "string" },
+				isInternal: { type: "boolean" }
 			},
 			required: ["featureName", "content", "directory"]
 		}
@@ -49,10 +51,12 @@ export const baToolHandlers = {
 		return { status: "success", message: "Waiting for user feedback." };
 	},
 
-	savePRD: async ({ featureName, content, directory }) => {
+	savePRD: async ({ featureName, content, directory, projectName, isInternal = false }) => {
+		const baseDir = isInternal ? config.paths.internal : `${config.paths.projects}/${projectName}`;
 		const fileName = `prd-${featureName.toLowerCase().replace(/\s+/g, "-")}.md`;
-		const fullPath = `${directory}/${fileName}`;
-		await fs.mkdir(directory, { recursive: true });
+		const fullPath = `${baseDir}/${directory}/${fileName}`;
+		
+		await fs.mkdir(`${baseDir}/${directory}`, { recursive: true });
 		await fs.writeFile(fullPath, content, "utf8");
 		return { status: "success", message: `PRD saved to ${fullPath}` };
 	}

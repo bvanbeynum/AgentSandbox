@@ -10,15 +10,18 @@ class ProjectSetupAgent extends BaseAgent {
 
 	async executeReasoning(payload) {
 		const taskId = payload.taskId;
+		const projectName = payload.metadata?.projectName || "default-project";
+
 		const chat = this.model.startChat({
 			tools: [{ functionDeclarations: this.tools }]
 		});
 
 		const context = `
+			Project Name: ${projectName}
 			Blueprint: ${payload.instruction}
 			Blueprint Location: workspace/blueprints/
 			Network Plan Location: workspace/network-plans/
-			
+
 			Action Required: 
 			1. Initialize npm in the workspace.
 			2. Create the folder structure.
@@ -26,7 +29,7 @@ class ProjectSetupAgent extends BaseAgent {
 			4. Write the initial entry point (index.js).
 		`;
 
-		await this.log(taskId, "info", "Commencing Project Scaffolding");
+		await this.log(taskId, "info", `Commencing Project Scaffolding for: ${projectName}`);
 
 		let isComplete = false;
 		let finalSummary = "";
@@ -41,7 +44,12 @@ class ProjectSetupAgent extends BaseAgent {
 					const { name, args } = call.functionCall;
 					await this.log(taskId, "debug", `Setup Agent Tool: ${name}`, { args });
 
-					const toolResult = await allHandlers[name]({ ...args, taskId });
+					const toolResult = await allHandlers[name]({ 
+						...args, 
+						taskId, 
+						projectName, 
+						metadata: payload.metadata 
+					});
 					await this.log(taskId, "debug", `Setup Agent Tool Result: ${name}`, { toolResult });
 
 					currentPrompt = [{ functionResponse: { name, response: toolResult } }];

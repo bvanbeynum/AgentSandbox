@@ -38,7 +38,9 @@ export const commonTools = [
 		parameters: {
 			type: "object",
 			properties: {
-				path: { type: "string" }
+				path: { type: "string" },
+				projectName: { type: "string" },
+				isInternal: { type: "boolean" }
 			},
 			required: ["path"]
 		}
@@ -52,7 +54,8 @@ export const commonTools = [
 				to: { type: "string", description: "The role of the target agent" },
 				instruction: { type: "string", description: "Detailed instructions for the next agent" },
 				taskId: { type: "string" },
-				from: { type: "string", description: "The role of the current agent" }
+				from: { type: "string", description: "The role of the current agent" },
+				metadata: { type: "object", description: "Metadata to pass to the next agent (e.g., projectName)" }
 			},
 			required: ["to", "instruction", "taskId"]
 		}
@@ -79,12 +82,14 @@ export const commonToolHandlers = {
 		}
 	},
 
-	readProjectFile: async ({ path }) => {
-		const data = await fs.readFile(path, "utf8");
+	readProjectFile: async ({ path, projectName, isInternal = false }) => {
+		const baseDir = isInternal ? config.paths.internal : `${config.paths.projects}/${projectName}`;
+		const fullPath = `${baseDir}/${path}`;
+		const data = await fs.readFile(fullPath, "utf8");
 		return { status: "success", content: data };
 	},
 
-	assignTask: async ({ to, instruction, taskId, from = "Agent" }) => {
+	assignTask: async ({ to, instruction, taskId, from = "Agent", metadata }) => {
 		const client = new MongoClient(config.db.uri, config.db.options);
 
 		try {
@@ -99,6 +104,7 @@ export const commonToolHandlers = {
 					instruction: instruction,
 					parentTaskId: taskId
 				},
+				metadata: metadata,
 				createdAt: new Date()
 			});
 
