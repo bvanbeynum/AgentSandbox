@@ -8,6 +8,8 @@ services:
       - .:/app                # Mount source code
       - /app/node_modules     # Keep node_modules internal to container
       - ./workspace:/app/workspace # Shared code output folder
+      - /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
+
   business-analyst:
     <<: *base-agent
     container_name: ba_agent
