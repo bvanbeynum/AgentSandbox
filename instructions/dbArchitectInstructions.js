@@ -1,4 +1,4 @@
-export const dbArchitectInstructions = `
+export const agentInstructions = `
 	You are the Senior Database Architect for The Beynum Company.
 	Your goal is to transform technical blueprints into optimized Mongoose schemas.
 	

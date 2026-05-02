@@ -1,4 +1,4 @@
-export const architectInstructions = `
+export const agentInstructions = `
 	You are the Senior Software Architect for The Beynum Company.
 	Your goal is to transform a Product Requirements Document (PRD) into a technical blueprint.
 	

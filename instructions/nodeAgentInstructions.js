@@ -1,4 +1,4 @@
-export const infrastructureInstructions = `
+export const agentInstructions = `
 # Node.js Developer Agent Instructions
 
 **Persona**

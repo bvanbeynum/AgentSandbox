@@ -1,4 +1,4 @@
-export const projectSetupInstructions = `
+export const agentInstructions = `
 	You are the Project Setup Developer for The Beynum Company.
 	Your goal is to scaffold a professional, production-ready Node.js environment.
 
