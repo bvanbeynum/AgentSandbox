@@ -20,7 +20,8 @@ class SoftwareArchitectAgent extends BaseAgent {
 		`;
 
 		const result = await chat.sendMessage(context);
-		const call = result.response.candidates[0].content.parts.find(parts => parts.functionCall);
+		const response = result.response;
+		const call = response.candidates?.[0]?.content?.parts?.find(parts => parts.functionCall);
 
 		if (call) {
 			const { name, args } = call.functionCall;
@@ -36,7 +37,11 @@ class SoftwareArchitectAgent extends BaseAgent {
 			return toolResult.message || toolResult.status;
 		}
 
-		return result.response.text();
+		try {
+			return response.text();
+		} catch (e) {
+			return "Error: Could not extract text from model response.";
+		}
 	}
 
 }

@@ -18,11 +18,23 @@ class BusinessAnalystAgent extends BaseAgent {
 
 		await this.log(taskId, "info", `Starting requirement analysis for project: ${projectName}`, { instruction: payload.instruction });
 
-		// We pass the context: the initial prompt PLUS any previous responses from the user
+		// Format clarification history for the LLM
+		let historyStr = "";
+		if (payload.clarifications && payload.clarifications.length > 0) {
+			historyStr = payload.clarifications.map((c, i) => 
+				`Round ${i + 1}:\nAgent Asked:\n${c.questions}\n\nUser Answered:\n${c.answer || "No answer yet."}`
+			).join("\n\n---\n\n");
+		} else {
+			historyStr = "None yet.";
+		}
+
+		// We pass the context: the initial prompt PLUS the structured Q&A history
 		let context = `
 			Project Name: ${projectName}
 			User Request: ${payload.instruction}
-			Previous User Responses: ${payload.userResponses || "None yet."}
+
+			Clarification History:
+			${historyStr}
 		`;
 
 		await this.log(taskId, "info", "BA Reasoning Loop Started");
@@ -34,8 +46,15 @@ class BusinessAnalystAgent extends BaseAgent {
 			try {
 				const result = await chat.sendMessage(context);
 				const response = result.response;
-				const text = response.text();
-				const call = response.candidates[0].content.parts.find(part => part.functionCall);
+				
+				let text = "";
+				try {
+					text = response.text();
+				} catch (e) {
+					// text() throws if content is undefined
+				}
+				
+				const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
 
 				if (text && text.trim()) {
 					await this.log(taskId, "info", "BA Reasoning Output", { text });

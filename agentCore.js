@@ -73,6 +73,25 @@ export class BaseAgent {
 	async processTask(task) {
 		console.log(`[${this.role}] Processing: ${task.payload.instruction}`);
 		
+		let clarifications = task.clarifications || [];
+
+		// Auto-migrate payload.userResponses to the latest clarification entry
+		if (task.payload?.userResponses && clarifications.length > 0) {
+			const lastIndex = clarifications.length - 1;
+			if (!clarifications[lastIndex].answer) {
+				clarifications[lastIndex].answer = task.payload.userResponses;
+				
+				await this.tasksCollection.updateOne(
+					{ _id: task._id },
+					{ 
+						$set: { [`clarifications.${lastIndex}.answer`]: task.payload.userResponses },
+						$unset: { "payload.userResponses": "" }
+					}
+				);
+				console.log(`[${this.role}] Auto-migrated user responses into clarification history.`);
+			}
+		}
+
 		await this.tasksCollection.updateOne(
 			{ _id: task._id }, 
 			{ $set: { status: "active", startedAt: new Date() } }
@@ -81,7 +100,8 @@ export class BaseAgent {
 		const result = await this.executeReasoning({ 
 			...task.payload, 
 			taskId: task._id.toString(),
-			metadata: task.metadata
+			metadata: task.metadata,
+			clarifications: clarifications
 		});
 
 		// Only set to "done" if a tool didn't already change the status (e.g., to "awaiting_user_input")

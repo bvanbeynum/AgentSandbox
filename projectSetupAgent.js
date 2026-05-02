@@ -38,7 +38,8 @@ class ProjectSetupAgent extends BaseAgent {
 		while (!isComplete) {
 			try {
 				const result = await chat.sendMessage(currentPrompt);
-				const call = result.response.candidates[0].content.parts.find(part => part.functionCall);
+				const response = result.response;
+				const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
 
 				if (call) {
 					const { name, args } = call.functionCall;
@@ -55,7 +56,11 @@ class ProjectSetupAgent extends BaseAgent {
 					currentPrompt = [{ functionResponse: { name, response: toolResult } }];
 				} 
 				else {
-					finalSummary = result.response.text();
+					try {
+						finalSummary = response.text();
+					} catch (e) {
+						finalSummary = "Error: Could not extract text from model response.";
+					}
 					await this.log(taskId, "info", "Project Scaffolding Complete");
 					isComplete = true;
 				}

@@ -18,7 +18,8 @@ class NodeDeveloperAgent extends BaseAgent {
 
 		while (!isComplete) {
 			const result = await chat.sendMessage(message);
-			const call = result.response.candidates[0].content.parts.find(part => part.functionCall);
+			const response = result.response;
+			const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
 
 			if (call) {
 				const { name, args } = call.functionCall;
@@ -35,7 +36,11 @@ class NodeDeveloperAgent extends BaseAgent {
 				}];
 			} else {
 				isComplete = true;
-				return result.response.text();
+				try {
+					return response.text();
+				} catch (e) {
+					return "Error: Could not extract text from model response.";
+				}
 			}
 		}
 	}

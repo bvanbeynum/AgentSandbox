@@ -29,7 +29,8 @@ class NetworkArchitectAgent extends BaseAgent {
 
 		while (!isComplete) {
 			const result = await chat.sendMessage(message);
-			const call = result.response.candidates[0].content.parts.find(part => part.functionCall);
+			const response = result.response;
+			const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
 
 			if (call) {
 				const { name, args } = call.functionCall;
@@ -44,7 +45,11 @@ class NetworkArchitectAgent extends BaseAgent {
 
 				message = [{ functionResponse: { name, response: toolResult } }];
 			} else {
-				finalResponse = result.response.text();
+				try {
+					finalResponse = response.text();
+				} catch (e) {
+					finalResponse = "Error: Could not extract text from model response.";
+				}
 				isComplete = true;
 			}
 		}

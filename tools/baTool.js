@@ -25,10 +25,14 @@ export const baToolHandlers = {
 		await db.collection("tasks").updateOne(
 			{ _id: new ObjectId(taskId) },
 			{ 
-				$set: { 
-					status: "awaiting_user_input", 
-					questions: questions 
-				} 
+				$set: { status: "awaiting_user_input" },
+				$push: { 
+					clarifications: { 
+						questions: questions, 
+						answer: null, 
+						timestamp: new Date() 
+					} 
+				}
 			}
 		);
 		await client.close();
