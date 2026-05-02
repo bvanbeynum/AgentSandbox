@@ -1,6 +1,6 @@
 import { toolHandlers as nodeHandlers } from "./tools/nodeAgentTools.js";
 import { baToolHandlers } from "./tools/baAgentTools.js";
-import { config } from "./config.js";
+import { config } from "../config.js";
 import fs from "fs/promises";
 
 export const setupTools = [

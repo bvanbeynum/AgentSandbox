@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { config } from "../config.js";
 
 const execPromise = promisify(exec);
 
@@ -43,10 +44,14 @@ export const nodeTools = [
 
 // Implementation of the handlers
 export const toolHandlers = {
-	writeFile: async ({ path, content }) => {
-		await fs.mkdir(path.split("/").slice(0, -1).join("/"), { recursive: true });
-		await fs.writeFile(path, content, "utf8");
-		return { status: "success", message: `File ${path} written.` };
+	writeFile: async ({ path, content, projectName, isInternal = false }) => {
+		const baseDir = isInternal ? config.paths.internal : `${config.paths.projects}/${projectName}`;
+		fullPath = `${baseDir}/${path}`;
+
+		await fs.mkdir(fullPath.split("/").slice(0, -1).join("/"), { recursive: true });
+		await fs.writeFile(fullPath, content, "utf8");
+
+		return { status: "success", message: `File written to ${fullPath}.` };
 	},
 
 	runCommand: async ({ command }) => {
