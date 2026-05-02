@@ -38,3 +38,12 @@ services:
     <<: *base-agent
     container_name: node_agent
     command: ["node", "nodeAgent.js"]
+
+  auth-service:
+    image: node:alpine
+    container_name: auth_service
+    network_mode: "host"
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: ["sh", "-c", "npm install express && node authService.js"]
