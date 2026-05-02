@@ -71,7 +71,8 @@ export class BaseAgent {
 	}
 
 	async processTask(task) {
-		console.log(`[${this.role}] Processing: ${task.payload.instruction}`);
+		const taskId = task._id.toString();
+		await this.log(taskId, "info", `Task Lifecycle Started: ${task.payload.instruction}`);
 		
 		let clarifications = task.clarifications || [];
 
@@ -88,7 +89,7 @@ export class BaseAgent {
 						$unset: { "payload.userResponses": "" }
 					}
 				);
-				console.log(`[${this.role}] Auto-migrated user responses into clarification history.`);
+				await this.log(taskId, "info", "Auto-migrated user responses into clarification history.");
 			}
 		}
 
@@ -99,7 +100,7 @@ export class BaseAgent {
 
 		const result = await this.executeReasoning({ 
 			...task.payload, 
-			taskId: task._id.toString(),
+			taskId,
 			metadata: task.metadata,
 			clarifications: clarifications
 		});
@@ -115,6 +116,7 @@ export class BaseAgent {
 					completedAt: new Date() 
 				}}
 			);
+			await this.log(taskId, "info", "Task Lifecycle Completed Successfully.");
 		}
 	}
 }
