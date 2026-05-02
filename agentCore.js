@@ -18,19 +18,13 @@ export class BaseAgent {
 	}
 
 	async initialize() {
-		this.client = new MongoClient(config.db.uri, {
-			replicaSet: config.db.replicaSet,
-			authSource: config.db.authsource,
-			connectTimeoutMS: config.db.connectionTimeoutMS,
-			serverSelectionTimeoutMS: 5000,
-			// Essential for keeping remote connections alive
-			heartbeatFrequencyMS: 30000 
-		});
+		this.client = new MongoClient(config.db.uri, config.db.options);
 
 		try {
 			await this.client.connect();
 			this.db = this.client.db(config.db.dbName);
 			this.tasksCollection = this.db.collection("tasks");
+			this.logsCollection = this.db.collection("agentLogs");
 
 			console.log(`[${this.role}] Connected to remote Blackboard at data.beynum.com`);
 			this.listenForTasks();
@@ -38,6 +32,17 @@ export class BaseAgent {
 			console.error(`[${this.role}] Connection Failed:`, error.message);
 			process.exit(1);
 		}
+	}
+
+	async log(taskId, level, message, context = {}) {
+		await this.logsCollection.insertOne({
+			taskId,
+			agentRole: this.role,
+			level,
+			message,
+			context,
+			created: new Date()
+		});
 	}
 
 	async listenForTasks() {

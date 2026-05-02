@@ -1,7 +1,7 @@
 import { BaseAgent } from "./agentCore.js";
 import { toolHandlers, nodeTools } from "./tools/nodeAgentTools.js";
 import { nodeSkills } from "./skills/nodeAgentSkills.js";
-import { agentInstructions } from "./instructions/infrastructure_instructions.js";
+import { agentInstructions } from "./instructions/nodeAgentInstructions.js";
 
 class NodeDeveloperAgent extends BaseAgent {
 

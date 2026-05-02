@@ -1,17 +1,40 @@
 services:
-  # Node.js Developer Agent
-  node-developer:
+  # Shared base for all agents
+  base-agent: &base-agent
     build: 
       context: .
-      dockerfile: Dockerfile.nodeDev
-    container_name: nodeAgent
-    network_mode: "host"
-    environment:
-      - AGENT_ROLE=Node.js Developer
-    restart: always
+      dockerfile: Dockerfile
     volumes:
-      - ./workspace:/app/workspace
-    deploy:
-      resources:
-        limits:
-          memory: 512mb
+      - .:/app                # Mount source code
+      - /app/node_modules     # Keep node_modules internal to container
+      - ./workspace:/app/workspace # Shared code output folder
+
+  business-analyst:
+    <<: *base-agent
+    container_name: ba_agent
+    command: ["node", "baAgent.js"]
+
+  software-architect:
+    <<: *base-agent
+    container_name: sa_agent
+    command: ["node", "softwareArchitectAgent.js"]
+  
+  database-architect:
+    <<: *base-agent
+    container_name: db_agent
+    command: ["node", "dbArchitectureAgent.js"]
+
+  network-architect:
+    <<: *base-agent
+    container_name: network_agent
+    command: ["node", "networkAgent.js"]
+
+  project-setup-agent:
+    <<: *base-agent
+    container_name: project_setup_agent
+    command: ["node", "projectSetupAgent.js"]
+
+  node-developer:
+    <<: *base-agent
+    container_name: node_agent
+    command: ["node", "nodeAgent.js"]

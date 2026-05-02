@@ -1,21 +1,4 @@
 export const nodeSkills = {
-	/**
-	 * Skill: Scaffolds a professional Node.js project structure
-	 */
-	scaffoldProject: async (toolHandlers, projectName) => {
-		console.log(`[Skill] Scaffolding ${projectName}...`);
-		await toolHandlers.writeFile({
-			path: "package.json",
-			content: JSON.stringify({
-				name: projectName,
-				version: "1.0.0",
-				type: "module", // ES6 support
-				dependencies: { express: "^4.21.1" }
-			}, null, 2)
-		});
-		await toolHandlers.runCommand({ command: "docker run --rm --network host npm install" });
-		return "Project scaffolded with ES6 support.";
-	},
 
 	/**
 	 * Skill: Iterative Debugging
@@ -28,4 +11,5 @@ export const nodeSkills = {
 		}
 		return "Code executed successfully.";
 	}
+	
 };
