@@ -1,5 +1,5 @@
 import { MongoClient } from "mongodb";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { config } from "./config.js";
 
 export class BaseAgent {
@@ -9,11 +9,9 @@ export class BaseAgent {
 		this.tools = tools;
 		this.skills = skills;
 
-		// Initialize Gemini with System Instruction (The "persona" of the agent)
-		this.genAI = new GoogleGenerativeAI(config.ai.key);
-		this.model = this.genAI.getGenerativeModel({ 
-			model: "gemini-2.5-flash",
-			systemInstruction: this.instructions // This ensures the instructions are always part of the context for reasoning
+		// Initialize Gemini with API Key
+		this.ai = new GoogleGenAI({
+			apiKey: config.ai.key
 		});
 	}
 

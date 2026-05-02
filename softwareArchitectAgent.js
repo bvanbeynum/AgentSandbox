@@ -8,8 +8,13 @@ class SoftwareArchitectAgent extends BaseAgent {
 		const taskId = payload.taskId;
 		const projectName = payload.metadata?.projectName || "default-project";
 
-		const chat = this.model.startChat({
-			tools: [{ functionDeclarations: this.tools }]
+		const chat = this.ai.chats.create({
+			model: "gemini-2.5-flash",
+			config: {
+				systemInstruction: this.instructions,
+				tools: [{ functionDeclarations: this.tools }],
+				thinkingConfig: { thinkingBudget: 2048 }
+			}
 		});
 
 		await this.log(taskId, "info", `Starting software architecture design for project: ${projectName}`, { instruction: payload.instruction });
@@ -28,21 +33,15 @@ class SoftwareArchitectAgent extends BaseAgent {
 
 		while (!isComplete) {
 			try {
-				const result = await chat.sendMessage(message);
-				const response = result.response;
+				const response = await chat.sendMessage({ message: message });
 
-				let text = "";
-				try {
-					text = response.text();
-				} catch (e) {
-					// text() throws if content is undefined
-				}
+				const parts = response.candidates?.[0]?.content?.parts || [];
+				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
+				const call = parts.find(parts => parts.functionCall);
 
 				if (text && text.trim()) {
 					await this.log(taskId, "info", "Software Architect Reasoning Output", { text });
 				}
-
-				const call = response.candidates?.[0]?.content?.parts?.find(parts => parts.functionCall);
 
 				if (call) {
 					const { name, args } = call.functionCall;

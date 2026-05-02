@@ -12,8 +12,13 @@ class ProjectSetupAgent extends BaseAgent {
 		const taskId = payload.taskId;
 		const projectName = payload.metadata?.projectName || "default-project";
 
-		const chat = this.model.startChat({
-			tools: [{ functionDeclarations: this.tools }]
+		const chat = this.ai.chats.create({
+			model: "gemini-2.5-flash",
+			config: {
+				systemInstruction: this.instructions,
+				tools: [{ functionDeclarations: this.tools }],
+				thinkingConfig: { thinkingBudget: 2048 }
+			}
 		});
 
 		await this.log(taskId, "info", `Starting project scaffolding for project: ${projectName}`, { instruction: payload.instruction });
@@ -37,21 +42,15 @@ class ProjectSetupAgent extends BaseAgent {
 
 		while (!isComplete) {
 			try {
-				const result = await chat.sendMessage(currentPrompt);
-				const response = result.response;
+				const response = await chat.sendMessage({ message: currentPrompt });
 
-				let text = "";
-				try {
-					text = response.text();
-				} catch (e) {
-					// text() throws if content is undefined
-				}
+				const parts = response.candidates?.[0]?.content?.parts || [];
+				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
+				const call = parts.find(p => p.functionCall);
 
 				if (text && text.trim()) {
 					await this.log(taskId, "info", "Project Setup Reasoning Output", { text });
 				}
-
-				const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
 
 				if (call) {
 					const { name, args } = call.functionCall;

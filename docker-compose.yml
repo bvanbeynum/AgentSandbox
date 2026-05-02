@@ -2,6 +2,7 @@ x-base-agent: &base-agent
   build: 
     context: .
     dockerfile: Dockerfile
+  image: agent
   volumes:
     - .:/app                # Mount source code
     - /app/node_modules     # Keep node_modules internal to container
@@ -39,11 +40,3 @@ services:
     container_name: node_agent
     command: ["node", "nodeAgent.js"]
 
-  auth-service:
-    image: node:alpine
-    container_name: auth_service
-    network_mode: "host"
-    working_dir: /app
-    volumes:
-      - .:/app
-    command: ["sh", "-c", "npm install express && node authService.js"]

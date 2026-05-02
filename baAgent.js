@@ -12,8 +12,13 @@ class BusinessAnalystAgent extends BaseAgent {
 		const taskId = payload.taskId;
 		const projectName = payload.metadata?.projectName || "default-project";
 
-		const chat = this.model.startChat({
-			tools: [{ functionDeclarations: this.tools }]
+		const chat = this.ai.chats.create({
+			model: "gemini-2.5-flash",
+			config: {
+				systemInstruction: this.instructions,
+				tools: [{ functionDeclarations: this.tools }],
+				thinkingConfig: { thinkingBudget: 2048 }
+			}
 		});
 
 		await this.log(taskId, "info", `Starting requirement analysis for project: ${projectName}`, { instruction: payload.instruction });
@@ -44,17 +49,11 @@ class BusinessAnalystAgent extends BaseAgent {
 
 		while (!isComplete) {
 			try {
-				const result = await chat.sendMessage(context);
-				const response = result.response;
+				const response = await chat.sendMessage({ message: context });
 				
-				let text = "";
-				try {
-					text = response.text();
-				} catch (e) {
-					// text() throws if content is undefined
-				}
-				
-				const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
+				const parts = response.candidates?.[0]?.content?.parts || [];
+				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
+				const call = parts.find(p => p.functionCall);
 
 				if (text && text.trim()) {
 					await this.log(taskId, "info", "BA Reasoning Output", { text });
@@ -96,7 +95,6 @@ class BusinessAnalystAgent extends BaseAgent {
 				return `Error: ${error.message}`;
 			}
 		}
-
 		return finalResponse;
 
 	}
