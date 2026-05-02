@@ -1,15 +1,14 @@
-services:
-  # Shared base for all agents
-  base-agent: &base-agent
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    volumes:
-      - .:/app                # Mount source code
-      - /app/node_modules     # Keep node_modules internal to container
-      - ./workspace:/app/workspace # Shared code output folder
-      - /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
+x-base-agent: &base-agent
+  build: 
+    context: .
+    dockerfile: Dockerfile
+  volumes:
+    - .:/app                # Mount source code
+    - /app/node_modules     # Keep node_modules internal to container
+    - ./workspace:/app/workspace # Shared code output folder
+    - /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
 
+services:
   business-analyst:
     <<: *base-agent
     container_name: ba_agent
@@ -28,7 +27,7 @@ services:
   network-architect:
     <<: *base-agent
     container_name: network_agent
-    command: ["node", "networkAgent.js"]
+    command: ["node", "netArchitectAgent.js"]
 
   project-setup-agent:
     <<: *base-agent
