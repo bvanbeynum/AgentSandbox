@@ -16,11 +16,11 @@ class ProjectSetupAgent extends BaseAgent {
 			tools: [{ functionDeclarations: this.tools }]
 		});
 
+		await this.log(taskId, "info", `Starting project scaffolding for project: ${projectName}`, { instruction: payload.instruction });
+
 		const context = `
 			Project Name: ${projectName}
 			Blueprint: ${payload.instruction}
-			Blueprint Location: workspace/blueprints/
-			Network Plan Location: workspace/network-plans/
 
 			Action Required: 
 			1. Initialize npm in the workspace.
@@ -29,7 +29,7 @@ class ProjectSetupAgent extends BaseAgent {
 			4. Write the initial entry point (index.js).
 		`;
 
-		await this.log(taskId, "info", `Commencing Project Scaffolding for: ${projectName}`);
+		await this.log(taskId, "info", "Project Setup Reasoning Loop Started");
 
 		let isComplete = false;
 		let finalSummary = "";
@@ -39,11 +39,23 @@ class ProjectSetupAgent extends BaseAgent {
 			try {
 				const result = await chat.sendMessage(currentPrompt);
 				const response = result.response;
+
+				let text = "";
+				try {
+					text = response.text();
+				} catch (e) {
+					// text() throws if content is undefined
+				}
+
+				if (text && text.trim()) {
+					await this.log(taskId, "info", "Project Setup Reasoning Output", { text });
+				}
+
 				const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
 
 				if (call) {
 					const { name, args } = call.functionCall;
-					await this.log(taskId, "debug", `Setup Agent Tool: ${name}`, { args });
+					await this.log(taskId, "debug", `Setup Executing Tool: ${name}`, { args });
 
 					const toolResult = await allHandlers[name]({ 
 						...args, 
@@ -51,21 +63,17 @@ class ProjectSetupAgent extends BaseAgent {
 						projectName, 
 						metadata: payload.metadata 
 					});
-					await this.log(taskId, "debug", `Setup Agent Tool Result: ${name}`, { toolResult });
+					await this.log(taskId, "debug", `Setup Tool Result: ${name}`, { toolResult });
 
 					currentPrompt = [{ functionResponse: { name, response: toolResult } }];
 				} 
 				else {
-					try {
-						finalSummary = response.text();
-					} catch (e) {
-						finalSummary = "Error: Could not extract text from model response.";
-					}
+					finalSummary = text || "Project Scaffolding Complete.";
 					await this.log(taskId, "info", "Project Scaffolding Complete");
 					isComplete = true;
 				}
 			} catch (error) {
-				await this.log(taskId, "error", "Setup Loop Failed", { error: error.message });
+				await this.log(taskId, "error", "Error during Project Setup reasoning loop", { error: error.message });
 				return `Setup failed: ${error.message}`;
 			}
 		}

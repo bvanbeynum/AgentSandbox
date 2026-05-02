@@ -12,45 +12,60 @@ class NetworkArchitectAgent extends BaseAgent {
 			tools: [{ functionDeclarations: this.tools }]
 		});
 
+		await this.log(taskId, "info", `Starting network architecture design for project: ${projectName}`, { instruction: payload.instruction });
+
 		const context = `
 			Project Name: ${projectName}
 			Feature Context: ${payload.instruction}
-			Input Requirements:
-			- PRD Location: workspace/prds/
-			- Software Blueprint: workspace/blueprints/
-			- Remote DB: data.beynum.com
 			
 			Task: Create the network architecture and security plan for this feature.
 		`;
+
+		await this.log(taskId, "info", "Network Reasoning Loop Started");
 
 		let message = context;
 		let isComplete = false;
 		let finalResponse = "";
 
 		while (!isComplete) {
-			const result = await chat.sendMessage(message);
-			const response = result.response;
-			const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
+			try {
+				const result = await chat.sendMessage(message);
+				const response = result.response;
 
-			if (call) {
-				const { name, args } = call.functionCall;
-				console.log(`[Network Architect] Executing Tool: ${name}`);
-
-				const toolResult = await commonToolHandlers[name]({
-					...args,
-					taskId,
-					projectName,
-					metadata: payload.metadata
-				});
-
-				message = [{ functionResponse: { name, response: toolResult } }];
-			} else {
+				let text = "";
 				try {
-					finalResponse = response.text();
+					text = response.text();
 				} catch (e) {
-					finalResponse = "Error: Could not extract text from model response.";
+					// text() throws if content is undefined
 				}
-				isComplete = true;
+
+				if (text && text.trim()) {
+					await this.log(taskId, "info", "Network Reasoning Output", { text });
+				}
+
+				const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
+
+				if (call) {
+					const { name, args } = call.functionCall;
+					await this.log(taskId, "debug", `Network Executing Tool: ${name}`, { args });
+
+					const toolResult = await commonToolHandlers[name]({
+						...args,
+						taskId,
+						projectName,
+						metadata: payload.metadata
+					});
+
+					await this.log(taskId, "debug", `Network Tool Result: ${name}`, { toolResult });
+
+					message = [{ functionResponse: { name, response: toolResult } }];
+				} else {
+					finalResponse = text || "Network Architecture Design Complete.";
+					isComplete = true;
+				}
+			} catch (error) {
+				await this.log(taskId, "error", "Error during Network reasoning loop", { error: error.message });
+				return `Error: ${error.message}`;
 			}
 		}
 

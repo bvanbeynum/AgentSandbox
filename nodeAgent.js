@@ -13,34 +13,55 @@ class NodeDeveloperAgent extends BaseAgent {
 			tools: [{ functionDeclarations: this.tools }]
 		});
 
+		await this.log(taskId, "info", `Starting Node.js development for project: ${projectName}`, { instruction: payload.instruction });
+
 		let message = `Project Name: ${projectName}\nInstruction: ${payload.instruction}`;
+		
+		await this.log(taskId, "info", "Node Developer Reasoning Loop Started");
+
 		let isComplete = false;
 
 		while (!isComplete) {
-			const result = await chat.sendMessage(message);
-			const response = result.response;
-			const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
+			try {
+				const result = await chat.sendMessage(message);
+				const response = result.response;
 
-			if (call) {
-				const { name, args } = call.functionCall;
-				console.log(`[${this.role}] Executing Tool: ${name}`);
-				const toolResult = await commonToolHandlers[name]({ 
-					...args, 
-					taskId, 
-					projectName, 
-					metadata: payload.metadata 
-				});
-				
-				message = [{
-					functionResponse: { name, response: toolResult }
-				}];
-			} else {
-				isComplete = true;
+				let text = "";
 				try {
-					return response.text();
+					text = response.text();
 				} catch (e) {
-					return "Error: Could not extract text from model response.";
+					// text() throws if content is undefined
 				}
+
+				if (text && text.trim()) {
+					await this.log(taskId, "info", "Node Developer Reasoning Output", { text });
+				}
+
+				const call = response.candidates?.[0]?.content?.parts?.find(part => part.functionCall);
+
+				if (call) {
+					const { name, args } = call.functionCall;
+					await this.log(taskId, "debug", `Node Developer Executing Tool: ${name}`, { args });
+
+					const toolResult = await commonToolHandlers[name]({ 
+						...args, 
+						taskId, 
+						projectName, 
+						metadata: payload.metadata 
+					});
+
+					await this.log(taskId, "debug", `Node Developer Tool Result: ${name}`, { toolResult });
+					
+					message = [{
+						functionResponse: { name, response: toolResult }
+					}];
+				} else {
+					isComplete = true;
+					return text || "Node.js Development Task Complete.";
+				}
+			} catch (error) {
+				await this.log(taskId, "error", "Error during Node Developer reasoning loop", { error: error.message });
+				return `Error: ${error.message}`;
 			}
 		}
 	}
