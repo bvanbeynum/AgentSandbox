@@ -9,16 +9,15 @@ const execPromise = promisify(exec);
 export const commonTools = [
 	{
 		name: "writeFile",
-		description: "Creates or overwrites a JavaScript/JSON file.",
+		description: "Creates or overwrites a JavaScript/JSON file in the project directory.",
 		parameters: {
 			type: "object",
 			properties: {
 				path: { type: "string", description: "Path including filename (e.g., 'src/app.js')" },
 				content: { type: "string", description: "The JavaScript code or JSON string" },
-				projectName: { type: "string" },
-				isInternal: { type: "boolean" }
+				projectName: { type: "string" }
 			},
-			required: ["path", "content"]
+			required: ["path", "content", "projectName"]
 		}
 	},
 	{
@@ -34,15 +33,39 @@ export const commonTools = [
 	},
 	{
 		name: "readProjectFile",
-		description: "Reads the content of an existing file to understand the codebase.",
+		description: "Reads the content of an existing file in the project directory.",
 		parameters: {
 			type: "object",
 			properties: {
 				path: { type: "string" },
-				projectName: { type: "string" },
-				isInternal: { type: "boolean" }
+				projectName: { type: "string" }
 			},
-			required: ["path"]
+			required: ["path", "projectName"]
+		}
+	},
+	{
+		name: "addProjectArtifact",
+		description: "Saves a project artifact (like a PRD, blueprint, or task list) to the database.",
+		parameters: {
+			type: "object",
+			properties: {
+				projectName: { type: "string" },
+				artifactName: { type: "string", description: "Descriptive name (e.g., 'PRD', 'Technical-Blueprint')" },
+				content: { type: "string", description: "The content of the artifact (usually Markdown)" }
+			},
+			required: ["projectName", "artifactName", "content"]
+		}
+	},
+	{
+		name: "readProjectArtifact",
+		description: "Reads a project artifact from the database.",
+		parameters: {
+			type: "object",
+			properties: {
+				projectName: { type: "string" },
+				artifactName: { type: "string" }
+			},
+			required: ["projectName", "artifactName"]
 		}
 	},
 	{
@@ -63,8 +86,8 @@ export const commonTools = [
 ];
 
 export const commonToolHandlers = {
-	writeFile: async ({ path, content, projectName, isInternal = false }) => {
-		const baseDir = isInternal ? config.paths.internal : `${config.paths.projects}/${projectName}`;
+	writeFile: async ({ path, content, projectName }) => {
+		const baseDir = `${config.paths.projects}/${projectName}`;
 		const fullPath = `${baseDir}/${path}`;
 
 		await fs.mkdir(fullPath.split("/").slice(0, -1).join("/"), { recursive: true });
@@ -82,11 +105,42 @@ export const commonToolHandlers = {
 		}
 	},
 
-	readProjectFile: async ({ path, projectName, isInternal = false }) => {
-		const baseDir = isInternal ? config.paths.internal : `${config.paths.projects}/${projectName}`;
+	readProjectFile: async ({ path, projectName }) => {
+		const baseDir = `${config.paths.projects}/${projectName}`;
 		const fullPath = `${baseDir}/${path}`;
 		const data = await fs.readFile(fullPath, "utf8");
 		return { status: "success", content: data };
+	},
+
+	addProjectArtifact: async ({ projectName, artifactName, content }) => {
+		const client = new MongoClient(config.db.uri, config.db.options);
+		try {
+			await client.connect();
+			const db = client.db(config.db.dbName);
+			await db.collection("artifacts").updateOne(
+				{ projectName, artifactName },
+				{ $set: { content, updatedAt: new Date() } },
+				{ upsert: true }
+			);
+			return { status: "success", message: `Artifact '${artifactName}' saved for project '${projectName}'.` };
+		} finally {
+			await client.close();
+		}
+	},
+
+	readProjectArtifact: async ({ projectName, artifactName }) => {
+		const client = new MongoClient(config.db.uri, config.db.options);
+		try {
+			await client.connect();
+			const db = client.db(config.db.dbName);
+			const artifact = await db.collection("artifacts").findOne({ projectName, artifactName });
+			if (!artifact) {
+				return { status: "error", message: `Artifact '${artifactName}' not found for project '${projectName}'.` };
+			}
+			return { status: "success", content: artifact.content };
+		} finally {
+			await client.close();
+		}
 	},
 
 	assignTask: async ({ to, instruction, taskId, from = "Agent", metadata }) => {
