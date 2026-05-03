@@ -12,8 +12,7 @@ class SoftwareArchitectAgent extends BaseAgent {
 			model: "gemini-2.5-flash",
 			config: {
 				systemInstruction: this.instructions,
-				tools: [{ functionDeclarations: this.tools }],
-				thinkingConfig: { thinkingBudget: 2048 }
+				tools: [{ functionDeclarations: this.tools }]
 			}
 		});
 
@@ -36,47 +35,60 @@ class SoftwareArchitectAgent extends BaseAgent {
 		let message = context;
 		let isComplete = false;
 		let finalResponse = "";
+		let currentMessage = message;
 
 		while (!isComplete) {
 			try {
-				const response = await chat.sendMessage({ message: message });
+				const response = await chat.sendMessage({ message: currentMessage });
 
-				const parts = response.candidates?.[0]?.content?.parts || [];
-				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
-				const call = parts.find(parts => parts.functionCall);
-
-				if (text && text.trim()) {
-					await this.log(taskId, "info", "Software Architect Reasoning Output", { text });
+				if (!response.candidates || response.candidates.length === 0) {
+					break;
 				}
 
-				if (call) {
-					const { name, args } = call.functionCall;
-					await this.log(taskId, "debug", `Architect Executing Tool: ${name}`, { args });
-					
-					const toolResult = await commonToolHandlers[name]({
-						...args,
-						taskId,
-						projectName,
-						agentRole: this.role,
-						metadata: payload.metadata
-					});
+				const parts = response.candidates[0].content?.parts || [];
+				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
+				const calls = parts.filter(p => p.functionCall);
 
-					await this.log(taskId, "debug", `Architect Tool Result: ${name}`, { toolResult });
-					
-					message = [{ functionResponse: { name, response: toolResult } }];
-				} else {
-					finalResponse = text || "Software Architecture Design Complete.";
+				if (text) {
+					await this.log(taskId, "info", "Software Architect Reasoning Output", { text });
+					finalResponse = text;
+				}
+
+				if (calls.length > 0) {
+					const toolResponses = [];
+
+					for (const call of calls) {
+						const { name, args } = call.functionCall;
+						await this.log(taskId, "debug", `Architect Executing Tool: ${name}`, { args });
+
+						const toolResult = await commonToolHandlers[name]({
+							...args,
+							taskId,
+							projectName,
+							agentRole: this.role,
+							metadata: payload.metadata
+						});
+
+						await this.log(taskId, "debug", `Architect Tool Result: ${name}`, { toolResult });
+
+						toolResponses.push({
+							functionResponse: { name, response: toolResult }
+						});
+					}
+
+					currentMessage = toolResponses;
+				}
+				else {
 					isComplete = true;
 				}
 			} catch (error) {
-				await this.log(taskId, "error", "Error during Software Architect reasoning loop", { error: error.message });
+				await this.log(taskId, "error", "Error during architect reasoning loop", { error: error.message });
 				return `Error: ${error.message}`;
 			}
 		}
 
 		return finalResponse;
 	}
-
 }
 
 const agent = new SoftwareArchitectAgent("Software Architect", agentInstructions, commonTools);

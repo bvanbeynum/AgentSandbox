@@ -12,8 +12,7 @@ class NetworkArchitectAgent extends BaseAgent {
 			model: "gemini-2.5-flash",
 			config: {
 				systemInstruction: this.instructions,
-				tools: [{ functionDeclarations: this.tools }],
-				thinkingConfig: { thinkingBudget: 2048 }
+				tools: [{ functionDeclarations: this.tools }]
 			}
 		});
 
@@ -31,45 +30,59 @@ class NetworkArchitectAgent extends BaseAgent {
 		let message = context;
 		let isComplete = false;
 		let finalResponse = "";
+		let currentMessage = message;
 
 		while (!isComplete) {
 			try {
-				const response = await chat.sendMessage({ message: message });
+				const response = await chat.sendMessage({ message: currentMessage });
 
-				const parts = response.candidates?.[0]?.content?.parts || [];
-				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
-				const call = parts.find(p => p.functionCall);
-
-				if (text && text.trim()) {
-					await this.log(taskId, "info", "Network Reasoning Output", { text });
+				if (!response.candidates || response.candidates.length === 0) {
+					break;
 				}
 
-				if (call) {
-					const { name, args } = call.functionCall;
-					await this.log(taskId, "debug", `Network Executing Tool: ${name}`, { args });
+				const parts = response.candidates[0].content?.parts || [];
+				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
+				const calls = parts.filter(p => p.functionCall);
 
-					const toolResult = await commonToolHandlers[name]({
-						...args,
-						taskId,
-						projectName,
-						agentRole: this.role,
-						metadata: payload.metadata
-					});
+				if (text) {
+					await this.log(taskId, "info", "Network Architect Reasoning Output", { text });
+					finalResponse = text;
+				}
 
-					await this.log(taskId, "debug", `Network Tool Result: ${name}`, { toolResult });
+				if (calls.length > 0) {
+					const toolResponses = [];
 
-					message = [{ functionResponse: { name, response: toolResult } }];
-				} else {
-					finalResponse = text || "Network Architecture Design Complete.";
+					for (const call of calls) {
+						const { name, args } = call.functionCall;
+						await this.log(taskId, "debug", `Network Tool Executing: ${name}`, { args });
+
+						const toolResult = await commonToolHandlers[name]({
+							...args,
+							taskId,
+							projectName,
+							agentRole: this.role,
+							metadata: payload.metadata
+						});
+
+						await this.log(taskId, "debug", `Network Tool Result: ${name}`, { toolResult });
+
+						toolResponses.push({
+							functionResponse: { name, response: toolResult }
+						});
+					}
+
+					currentMessage = toolResponses;
+				}
+				else {
 					isComplete = true;
 				}
 			} catch (error) {
-				await this.log(taskId, "error", "Error during Network reasoning loop", { error: error.message });
+				await this.log(taskId, "error", "Error during network reasoning loop", { error: error.message });
 				return `Error: ${error.message}`;
 			}
 		}
 
-		return finalResponse;
+		return finalResponse || "Network Infrastructure Design Complete.";
 	}
 }
 

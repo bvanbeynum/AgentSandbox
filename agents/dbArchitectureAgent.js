@@ -12,12 +12,11 @@ class DatabaseArchitectAgent extends BaseAgent {
 			model: "gemini-2.5-flash",
 			config: {
 				systemInstruction: this.instructions,
-				tools: [{ functionDeclarations: this.tools }],
-				thinkingConfig: { thinkingBudget: 2048 }
+				tools: [{ functionDeclarations: this.tools }]
 			}
 		});
 
-		await this.log(taskId, "info", `Starting DB schema design for project: ${projectName}`, { instruction: payload.instruction });
+		await this.log(taskId, "info", `Starting database architecture design for project: ${projectName}`, { instruction: payload.instruction });
 
 		const instruction = payload.instruction || "";
 		const stopKeywords = ["stop", "don't continue", "do not continue", "finish here", "only create", "then stop"];
@@ -38,34 +37,50 @@ class DatabaseArchitectAgent extends BaseAgent {
 		let message = context;
 		let isComplete = false;
 		let finalResponse = "";
+		let currentMessage = message;
 
 		while (!isComplete) {
 			try {
-				const response = await chat.sendMessage({ message: message });
+				const response = await chat.sendMessage({ message: currentMessage });
 
-				const parts = response.candidates?.[0]?.content?.parts || [];
+				if (!response.candidates || response.candidates.length === 0) {
+					break;
+				}
+
+				const parts = response.candidates[0].content?.parts || [];
 				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
-				const call = parts.find(p => p.functionCall);
+				const calls = parts.filter(p => p.functionCall);
 
-				if (text && text.trim()) {
-					await this.log(taskId, "info", "DB Reasoning Output", { text });
-				}				if (call) {
-					const { name, args } = call.functionCall;
-					await this.log(taskId, "debug", `DB Executing Tool: ${name}`, { args });
+				if (text) {
+					await this.log(taskId, "info", "Database Architect Reasoning Output", { text });
+					finalResponse = text;
+				}
 
-					const toolResult = await commonToolHandlers[name]({
-						...args,
-						taskId,
-						projectName,
-						agentRole: this.role,
-						metadata: payload.metadata
-					});
+				if (calls.length > 0) {
+					const toolResponses = [];
 
-					await this.log(taskId, "debug", `DB Tool Result: ${name}`, { toolResult });
+					for (const call of calls) {
+						const { name, args } = call.functionCall;
+						await this.log(taskId, "debug", `DB Executing Tool: ${name}`, { args });
 
-					message = [{ functionResponse: { name, response: toolResult } }];
-				} else {
-					finalResponse = text || "DB Schema Generation Complete.";
+						const toolResult = await commonToolHandlers[name]({
+							...args,
+							taskId,
+							projectName,
+							agentRole: this.role,
+							metadata: payload.metadata
+						});
+
+						await this.log(taskId, "debug", `DB Tool Result: ${name}`, { toolResult });
+
+						toolResponses.push({
+							functionResponse: { name, response: toolResult }
+						});
+					}
+
+					currentMessage = toolResponses;
+				}
+				else {
 					isComplete = true;
 				}
 			} catch (error) {
@@ -74,7 +89,7 @@ class DatabaseArchitectAgent extends BaseAgent {
 			}
 		}
 
-		return finalResponse;
+		return finalResponse || "DB Schema Generation Complete.";
 	}
 }
 

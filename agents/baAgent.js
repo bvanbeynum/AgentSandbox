@@ -16,8 +16,7 @@ class BusinessAnalystAgent extends BaseAgent {
 			model: "gemini-2.5-flash",
 			config: {
 				systemInstruction: this.instructions,
-				tools: [{ functionDeclarations: this.tools }],
-				thinkingConfig: { thinkingBudget: 2048 }
+				tools: [{ functionDeclarations: this.tools }]
 			}
 		});
 
@@ -52,49 +51,55 @@ class BusinessAnalystAgent extends BaseAgent {
 
 		let isComplete = false;
 		let finalResponse = "";
+		let currentMessage = context;
 
 		while (!isComplete) {
 			try {
-				const response = await chat.sendMessage({ message: context });
+				const response = await chat.sendMessage({ message: currentMessage });
 				
-				const parts = response.candidates?.[0]?.content?.parts || [];
-				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
-				const call = parts.find(p => p.functionCall);
-
-				if (text && text.trim()) {
-					await this.log(taskId, "info", "BA Reasoning Output", { text });
+				if (!response.candidates || response.candidates.length === 0) {
+					break;
 				}
 
-				if (call) {
-					const { name, args } = call.functionCall;
+				const parts = response.candidates[0].content?.parts || [];
+				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
+				const calls = parts.filter(p => p.functionCall);
 
-					await this.log(taskId, "debug", `BA Executing Tool: ${name}`, { args });
+				if (text) {
+					await this.log(taskId, "info", "BA Reasoning Output", { text });
+					finalResponse = text;
+				}
 
-					// We pass the task ID, projectName and metadata so the tools can update records and target folders
-					const toolResult = await allHandlers[name]({ 
-						...args, 
-						taskId, 
-						projectName, 
-						agentRole: this.role,
-						metadata: payload.metadata 
-					});
+				if (calls.length > 0) {
+					const toolResponses = [];
 
-					await this.log(taskId, "debug", `BA Tool Result: ${name}`, { toolResult });
+					for (const call of calls) {
+						const { name, args } = call.functionCall;
+						await this.log(taskId, "debug", `BA Executing Tool: ${name}`, { args });
 
-					// CRITICAL: If the agent asks questions, we must break the loop 
-					// because the agent cannot proceed until the user updates the DB.
-					if (name === "askClarifyingQuestions") {
-						await this.log(taskId, "info", "BA paused to wait for user input.");
-						return "Awaiting user clarification...";
+						const toolResult = await allHandlers[name]({ 
+							...args, 
+							taskId, 
+							projectName, 
+							agentRole: this.role,
+							metadata: payload.metadata 
+						});
+
+						await this.log(taskId, "debug", `BA Tool Result: ${name}`, { toolResult });
+
+						if (name === "askClarifyingQuestions") {
+							await this.log(taskId, "info", "BA paused to wait for user input.");
+							return "Awaiting user clarification...";
+						}
+
+						toolResponses.push({
+							functionResponse: { name, response: toolResult }
+						});
 					}
 
-					// Feed the tool result back to the LLM to continue (e.g., after saving, it should assign)
-					context = [{
-						functionResponse: { name, response: toolResult }
-					}];
+					currentMessage = toolResponses;
 				}
 				else {
-					finalResponse = text;
 					isComplete = true;
 				}
 			} catch (error) {
