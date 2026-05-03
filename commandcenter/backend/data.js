@@ -46,6 +46,10 @@ const sanitize = (doc) => {
 	const sanitized = { ...doc };
 	if (sanitized._id) {
 		sanitized.id = sanitized._id.toString();
+		// Fallback for date if 'created' is missing
+		if (!sanitized.created) {
+			sanitized.created = sanitized.createdAt || sanitized._id.getTimestamp();
+		}
 		delete sanitized._id;
 	}
 	if (sanitized.taskId && sanitized.taskId instanceof mongoose.Types.ObjectId) {
@@ -117,14 +121,15 @@ export const dataLayer = {
 	},
 	getAgentDetails: async (role) => {
 		try {
-			const tasks = await Task.find({ to: role }).sort({ created: -1 }).limit(20).lean().exec();
+			const rawTasks = await Task.find({ to: role }).sort({ created: -1 }).limit(20).lean().exec();
+			const tasks = sanitize(rawTasks);
 			const logs = await Log.find({ agentRole: role }).sort({ created: -1 }).limit(50).lean().exec();
 			
 			// Infer artifacts from taskId or agentRole
 			const artifacts = await Artifact.find({ 
 				$or: [
 					{ agentRole: role },
-					{ taskId: { $in: tasks.map(t => t._id) } }
+					{ taskId: { $in: rawTasks.map(t => t._id) } }
 				]
 			}).sort({ created: -1 }).lean().exec();
 

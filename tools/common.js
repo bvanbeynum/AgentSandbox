@@ -166,7 +166,7 @@ export const commonToolHandlers = {
 					parentTaskId: taskId
 				},
 				metadata: metadata,
-				createdAt: new Date()
+				created: new Date()
 			});
 
 			return { status: "success", message: `Task assigned to ${to}` };
