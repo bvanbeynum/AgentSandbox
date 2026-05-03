@@ -1,7 +1,7 @@
 import { BaseAgent } from "./agentCore.js";
-import { agentInstructions } from "./instructions/projectSetupInstructions.js";
-import { commonTools, commonToolHandlers } from "./tools/common.js";
-import { projectSetupTools, projectSetupToolHandlers } from "./tools/projectSetupTool.js";
+import { agentInstructions } from "../instructions/projectSetupInstructions.js";
+import { commonTools, commonToolHandlers } from "../tools/common.js";
+import { projectSetupTools, projectSetupToolHandlers } from "../tools/projectSetupTool.js";
 
 const allTools = [...commonTools, ...projectSetupTools];
 const allHandlers = { ...commonToolHandlers, ...projectSetupToolHandlers };

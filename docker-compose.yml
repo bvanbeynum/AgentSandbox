@@ -13,30 +13,35 @@ services:
   business-analyst:
     <<: *base-agent
     container_name: ba_agent
-    command: ["node", "baAgent.js"]
+    command: ["node", "./agents/baAgent.js"]
 
   software-architect:
     <<: *base-agent
     container_name: sa_agent
-    command: ["node", "softwareArchitectAgent.js"]
+    command: ["node", "./agents/softwareArchitectAgent.js"]
   
   database-architect:
     <<: *base-agent
     container_name: db_agent
-    command: ["node", "dbArchitectureAgent.js"]
+    command: ["node", "./agents/dbArchitectureAgent.js"]
 
   network-architect:
     <<: *base-agent
     container_name: network_agent
-    command: ["node", "netArchitectAgent.js"]
+    command: ["node", "./agents/netArchitectAgent.js"]
 
   project-setup-agent:
     <<: *base-agent
     container_name: project_setup_agent
-    command: ["node", "projectSetupAgent.js"]
+    command: ["node", "./agents/projectSetupAgent.js"]
+
+  designer-agent:
+    <<: *base-agent
+    container_name: designer_agent
+    command: ["node", "./agents/designerAgent.js"]
 
   node-developer:
     <<: *base-agent
     container_name: node_agent
-    command: ["node", "nodeAgent.js"]
+    command: ["node", "./agents/nodeAgent.js"]
 

@@ -1,8 +1,8 @@
 import { BaseAgent } from "./agentCore.js";
-import { agentInstructions } from "./instructions/dbArchitectInstructions.js";
-import { commonTools, commonToolHandlers } from "./tools/common.js";
+import { agentInstructions } from "../instructions/netArchitectInstructions.js";
+import { commonTools, commonToolHandlers } from "../tools/common.js";
 
-class DatabaseArchitectAgent extends BaseAgent {
+class NetworkArchitectAgent extends BaseAgent {
 
 	async executeReasoning(payload) {
 		const taskId = payload.taskId;
@@ -17,17 +17,16 @@ class DatabaseArchitectAgent extends BaseAgent {
 			}
 		});
 
-		await this.log(taskId, "info", `Starting DB schema design for project: ${projectName}`, { instruction: payload.instruction });
+		await this.log(taskId, "info", `Starting network architecture design for project: ${projectName}`, { instruction: payload.instruction });
 
 		const context = `
 			Project Name: ${projectName}
-			Blueprint Context: ${payload.instruction}
+			Feature Context: ${payload.instruction}
 
-			Task: Generate Mongoose schemas for this feature. 
-			Place files in the "workspace/models" directory.
+			Task: Create the network architecture and security plan for this feature.
 		`;
 
-		await this.log(taskId, "info", "DB Reasoning Loop Started");
+		await this.log(taskId, "info", "Network Reasoning Loop Started");
 
 		let message = context;
 		let isComplete = false;
@@ -42,10 +41,12 @@ class DatabaseArchitectAgent extends BaseAgent {
 				const call = parts.find(p => p.functionCall);
 
 				if (text && text.trim()) {
-					await this.log(taskId, "info", "DB Reasoning Output", { text });
-				}				if (call) {
+					await this.log(taskId, "info", "Network Reasoning Output", { text });
+				}
+
+				if (call) {
 					const { name, args } = call.functionCall;
-					await this.log(taskId, "debug", `DB Executing Tool: ${name}`, { args });
+					await this.log(taskId, "debug", `Network Executing Tool: ${name}`, { args });
 
 					const toolResult = await commonToolHandlers[name]({
 						...args,
@@ -54,15 +55,15 @@ class DatabaseArchitectAgent extends BaseAgent {
 						metadata: payload.metadata
 					});
 
-					await this.log(taskId, "debug", `DB Tool Result: ${name}`, { toolResult });
+					await this.log(taskId, "debug", `Network Tool Result: ${name}`, { toolResult });
 
 					message = [{ functionResponse: { name, response: toolResult } }];
 				} else {
-					finalResponse = text || "DB Schema Generation Complete.";
+					finalResponse = text || "Network Architecture Design Complete.";
 					isComplete = true;
 				}
 			} catch (error) {
-				await this.log(taskId, "error", "Error during DB reasoning loop", { error: error.message });
+				await this.log(taskId, "error", "Error during Network reasoning loop", { error: error.message });
 				return `Error: ${error.message}`;
 			}
 		}
@@ -71,5 +72,5 @@ class DatabaseArchitectAgent extends BaseAgent {
 	}
 }
 
-const agent = new DatabaseArchitectAgent("Database Architect", agentInstructions, commonTools);
+const agent = new NetworkArchitectAgent("Network Architect", agentInstructions, commonTools);
 agent.initialize();

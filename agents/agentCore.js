@@ -1,6 +1,6 @@
 import { MongoClient } from "mongodb";
 import { GoogleGenAI } from "@google/genai";
-import { config } from "./config.js";
+import { config } from "../config.js";
 
 export class BaseAgent {
 	constructor(role, instructions, tools = [], skills = []) {
