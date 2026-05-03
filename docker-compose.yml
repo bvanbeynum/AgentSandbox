@@ -44,14 +44,3 @@ services:
     <<: *base-agent
     container_name: node_agent
     command: ["node", "./agents/nodeAgent.js"]
-
-  command-center:
-    image: node:alpine
-    container_name: command_center
-    network_mode: "host"
-    volumes:
-      - .:/app
-    working_dir: /app
-    environment:
-      - NODE_ENV=development
-    command: ["npm", "run", "start:commandcenter"]
