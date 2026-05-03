@@ -34,9 +34,15 @@ class BusinessAnalystAgent extends BaseAgent {
 		}
 
 		// We pass the context: the initial prompt PLUS the structured Q&A history
+		const instruction = payload.instruction || "";
+		const stopKeywords = ["stop", "don't continue", "do not continue", "finish here", "create the prd and then stop", "only create"];
+		const inferredStop = stopKeywords.some(kw => instruction.toLowerCase().includes(kw));
+		const shouldContinue = payload.metadata?.shouldContinue !== false && !inferredStop;
+
 		let context = `
 			Project Name: ${projectName}
-			User Request: ${payload.instruction}
+			User Request: ${instruction}
+			shouldContinue: ${shouldContinue}
 
 			Clarification History:
 			${historyStr}

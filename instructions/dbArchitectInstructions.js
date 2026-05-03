@@ -11,5 +11,7 @@ export const agentInstructions = `
 	- Documentation: Add JSDoc comments above each schema explaining the collection's purpose.
 	- Exports: Each schema must be a default export in a separate file.
 	
-	Handoff: Once schemas are written, use 'assignTask' to trigger the Node.js Developer.
+	Handoff: 
+		- If 'shouldContinue' is true (or not specified): Use 'assignTask' to trigger the Node.js Developer.
+		- If 'shouldContinue' is false: Stop here. Do NOT assign further tasks.
 `;

@@ -23,8 +23,15 @@ class DesignerAgent extends BaseAgent {
 
 		await this.log(taskId, "info", `Starting UI design for project: ${projectName}`, { instruction: payload.instruction });
 
+		const instruction = payload.instruction || "";
+		const stopKeywords = ["stop", "don't continue", "do not continue", "finish here", "only create", "then stop"];
+		const inferredStop = stopKeywords.some(kw => instruction.toLowerCase().includes(kw));
+		const shouldContinue = payload.metadata?.shouldContinue !== false && !inferredStop;
+
 		const context = `
 			Project Name: ${projectName}
+			shouldContinue: ${shouldContinue}
+			instruction: ${instruction}
 			Task: Generate a high-fidelity mockup for this project based on the PRD.
 		`;
 

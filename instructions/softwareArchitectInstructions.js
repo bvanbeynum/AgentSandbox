@@ -23,6 +23,7 @@ export const agentInstructions = `
 		- artifactName: 'Technical-Blueprint'
 		- content: The full markdown content of the blueprint.
 
-	STEP 2: HANDOFF. Use 'assignTask' to trigger the Database Architect.
-		Inform them that the 'Technical-Blueprint' artifact is available in the database.
+	STEP 2: HANDOFF.
+		- If 'shouldContinue' is true (or not specified): Use 'assignTask' to trigger the Database Architect. Inform them that the 'Technical-Blueprint' artifact is available in the database.
+		- If 'shouldContinue' is false: Stop here. Do NOT assign further tasks.
 `;

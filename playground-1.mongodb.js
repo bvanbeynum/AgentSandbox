@@ -22,21 +22,22 @@ db.tasks.find({});
 
 // db.tasks.deleteMany({});
 // db.agentLogs.deleteMany({});
+// db.artifacts.deleteMany({});
 
 
 // db.tasks.updateOne(
-//   { _id: ObjectId("69f63cea6b9964ef9ee09fe3") },
+//   { _id: ObjectId("69f66778dc2adba27eedd527") },
 //   { 
 //     $set: { 
 //       "status": "pending", 
 //       "payload.userResponses": `
-// 1. a
-// 2. only those specified
-// 3. all
-// 4. a, c
-// 5. e
-// 6. c
-// 7. a
+// 1. none
+// 2. a, b, d
+// 3. a, b, d
+// 4. b, d
+// 5. no, only rank
+// 6. no
+// 7. no
 // `
 //     } 
 //   }

@@ -19,9 +19,15 @@ class DatabaseArchitectAgent extends BaseAgent {
 
 		await this.log(taskId, "info", `Starting DB schema design for project: ${projectName}`, { instruction: payload.instruction });
 
+		const instruction = payload.instruction || "";
+		const stopKeywords = ["stop", "don't continue", "do not continue", "finish here", "only create", "then stop"];
+		const inferredStop = stopKeywords.some(kw => instruction.toLowerCase().includes(kw));
+		const shouldContinue = payload.metadata?.shouldContinue !== false && !inferredStop;
+
 		const context = `
 			Project Name: ${projectName}
-			Blueprint Context: ${payload.instruction}
+			Blueprint Context: ${instruction}
+			shouldContinue: ${shouldContinue}
 
 			Task: Generate Mongoose schemas for this feature. 
 			Place files in the "workspace/models" directory.
