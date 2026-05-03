@@ -581,15 +581,30 @@ tr:hover {
 
 .terminal-container {
 	border: 1px solid var(--outline-variant);
-	background-color: var(--tertiary);
-	color: var(--on-tertiary);
+	background-color: #0d1117; /* Darker, high-contrast background */
+	color: #e6edf3; /* Brighter, high-contrast text */
 	padding: var(--stack-md);
 	display: flex;
 	flex-direction: column;
 	gap: var(--stack-sm);
-	height: 256px;
+	height: 320px;
 	overflow: hidden;
 	position: relative;
+	box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.terminal-container::after {
+	content: " ";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+	z-index: 2;
+	background-size: 100% 2px, 3px 100%;
+	pointer-events: none;
 }
 
 .terminal-header {
@@ -598,29 +613,41 @@ tr:hover {
 	left: 0;
 	width: 100%;
 	height: 32px;
-	background-color: rgba(0, 0, 0, 0.2);
+	background-color: #161b22;
 	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 	display: flex;
 	align-items: center;
 	padding: 0 16px;
 	justify-content: space-between;
+	z-index: 3;
 }
 
 .terminal-log-stream {
 	margin-top: 32px;
-	font-size: 12px;
-	line-height: 1.6;
-	opacity: 0.9;
+	font-size: 13px; /* Slightly larger for readability */
+	line-height: 1.5;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 6px;
 	overflow-y: auto;
+	padding-bottom: 16px;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.terminal-log-stream span[style*="var(--outline)"] {
+	color: #8b949e !important; /* Brighter timestamp for contrast */
+}
+
+.terminal-log-stream span[style*="var(--on-surface)"] {
+	color: #e6edf3 !important; /* Brighter message for contrast */
 }
 
 .terminal-cursor {
 	display: inline-block;
 	width: 8px;
-	height: 16px;
+	height: 15px;
 	background-color: var(--primary-cyan);
 	vertical-align: middle;
+	box-shadow: 0 0 8px var(--primary-cyan);
 }
