@@ -1,5 +1,6 @@
 # Application configurations
 config.js
+*_mockup/
 
 # Dependencies
 node_modules/
@@ -23,6 +24,7 @@ pids
 
 # Build directories and coverage
 build/
+dist/
 
 # Environment variables
 .env

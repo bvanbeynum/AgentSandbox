@@ -1,47 +1,58 @@
 x-base-agent: &base-agent
   build: 
-    context: .
-    dockerfile: Dockerfile
+  	context: .
+  	dockerfile: Dockerfile
   image: agent
   volumes:
-    - .:/app                # Mount source code
-    - /app/node_modules     # Keep node_modules internal to container
-    - ./workspace:/app/workspace # Shared code output folder
-    - /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
+  	- .:/app                # Mount source code
+  	- /app/node_modules     # Keep node_modules internal to container
+  	- ./workspace:/app/workspace # Shared code output folder
+  	- /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
 
 services:
   business-analyst:
-    <<: *base-agent
-    container_name: ba_agent
-    command: ["node", "./agents/baAgent.js"]
+  	<<: *base-agent
+  	container_name: ba_agent
+  	command: ["node", "./agents/baAgent.js"]
 
   software-architect:
-    <<: *base-agent
-    container_name: sa_agent
-    command: ["node", "./agents/softwareArchitectAgent.js"]
+  	<<: *base-agent
+  	container_name: sa_agent
+  	command: ["node", "./agents/softwareArchitectAgent.js"]
   
   database-architect:
-    <<: *base-agent
-    container_name: db_agent
-    command: ["node", "./agents/dbArchitectureAgent.js"]
+  	<<: *base-agent
+  	container_name: db_agent
+  	command: ["node", "./agents/dbArchitectureAgent.js"]
 
   network-architect:
-    <<: *base-agent
-    container_name: network_agent
-    command: ["node", "./agents/netArchitectAgent.js"]
+  	<<: *base-agent
+  	container_name: network_agent
+  	command: ["node", "./agents/netArchitectAgent.js"]
 
   project-setup-agent:
-    <<: *base-agent
-    container_name: project_setup_agent
-    command: ["node", "./agents/projectSetupAgent.js"]
+  	<<: *base-agent
+  	container_name: project_setup_agent
+  	command: ["node", "./agents/projectSetupAgent.js"]
 
   designer-agent:
-    <<: *base-agent
-    container_name: designer_agent
-    command: ["node", "./agents/designerAgent.js"]
+  	<<: *base-agent
+  	container_name: designer_agent
+  	command: ["node", "./agents/designerAgent.js"]
 
   node-developer:
-    <<: *base-agent
-    container_name: node_agent
-    command: ["node", "./agents/nodeAgent.js"]
+  	<<: *base-agent
+  	container_name: node_agent
+  	command: ["node", "./agents/nodeAgent.js"]
+
+  command-center:
+  	image: node:alpine
+  	container_name: command_center
+  	network_mode: "host"
+  	volumes:
+  		- .:/app
+  	working_dir: /app
+  	environment:
+  		- NODE_ENV=development
+  	command: ["npm", "run", "start:commandcenter"]
 
