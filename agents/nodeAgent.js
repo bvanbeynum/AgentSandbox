@@ -42,13 +42,13 @@ class NodeDeveloperAgent extends BaseAgent {
 					const { name, args } = call.functionCall;
 					await this.log(taskId, "debug", `Node Developer Executing Tool: ${name}`, { args });
 
-					const toolResult = await commonToolHandlers[name]({ 
-						...args, 
-						taskId, 
-						projectName, 
-						metadata: payload.metadata 
+					const toolResult = await commonToolHandlers[name]({
+						...args,
+						taskId,
+						projectName,
+						agentRole: this.role,
+						metadata: payload.metadata
 					});
-
 					await this.log(taskId, "debug", `Node Developer Tool Result: ${name}`, { toolResult });
 					
 					message = [{

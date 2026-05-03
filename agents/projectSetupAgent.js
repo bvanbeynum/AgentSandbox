@@ -56,13 +56,13 @@ class ProjectSetupAgent extends BaseAgent {
 					const { name, args } = call.functionCall;
 					await this.log(taskId, "debug", `Setup Executing Tool: ${name}`, { args });
 
-					const toolResult = await allHandlers[name]({ 
-						...args, 
-						taskId, 
-						projectName, 
-						metadata: payload.metadata 
-					});
-					await this.log(taskId, "debug", `Setup Tool Result: ${name}`, { toolResult });
+					const toolResult = await allHandlers[name]({
+						...args,
+						taskId,
+						projectName,
+						agentRole: this.role,
+						metadata: payload.metadata
+					});					await this.log(taskId, "debug", `Setup Tool Result: ${name}`, { toolResult });
 
 					currentPrompt = [{ functionResponse: { name, response: toolResult } }];
 				} 

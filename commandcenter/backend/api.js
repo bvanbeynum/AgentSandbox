@@ -27,5 +27,13 @@ export const api = {
 	getArtifacts: async (req, res) => {
 		const result = await dataLayer.getArtifacts(req.query);
 		res.status(result.status).json(result);
+	},
+	getAgents: async (req, res) => {
+		const result = await dataLayer.getAgents();
+		res.status(result.status).json(result);
+	},
+	getAgentDetails: async (req, res) => {
+		const result = await dataLayer.getAgentDetails(req.params.id);
+		res.status(result.status).json(result);
 	}
 };

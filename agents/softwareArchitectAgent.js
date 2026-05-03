@@ -57,6 +57,7 @@ class SoftwareArchitectAgent extends BaseAgent {
 						...args,
 						taskId,
 						projectName,
+						agentRole: this.role,
 						metadata: payload.metadata
 					});
 

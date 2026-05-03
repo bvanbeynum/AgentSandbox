@@ -112,14 +112,21 @@ export const commonToolHandlers = {
 		return { status: "success", content: data };
 	},
 
-	addProjectArtifact: async ({ projectName, artifactName, content }) => {
+	addProjectArtifact: async ({ projectName, artifactName, content, taskId, agentRole }) => {
 		const client = new MongoClient(config.db.uri, config.db.options);
 		try {
 			await client.connect();
 			const db = client.db(config.db.dbName);
 			await db.collection("artifacts").updateOne(
 				{ projectName, artifactName },
-				{ $set: { content, updatedAt: new Date() } },
+				{ 
+					$set: { 
+						content, 
+						taskId: taskId ? new ObjectId(taskId) : null,
+						agentRole,
+						updatedAt: new Date() 
+					} 
+				},
 				{ upsert: true }
 			);
 			return { status: "success", message: `Artifact '${artifactName}' saved for project '${projectName}'.` };

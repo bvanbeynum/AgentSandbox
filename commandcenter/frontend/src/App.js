@@ -138,35 +138,71 @@ const Overview = ({ data }) => {
 };
 
 const Agents = () => {
-	const [selectedAgent, setSelectedAgent] = useState('Agent_Arch_01');
+	const [agentRoster, setAgentRoster] = useState([]);
+	const [selectedAgent, setSelectedAgent] = useState(null);
+	const [selectedAgentData, setSelectedAgentData] = useState(null);
 	
-	const agentRoster = [
-		{ id: 'Agent_Arch_01', role: 'ARCHITECT', icon: 'architecture', status: 'online' },
-		{ id: 'Agent_Dev_Alpha', role: 'DEVELOPER', icon: 'code', status: 'warning' },
-		{ id: 'Agent_UIUX_04', role: 'DESIGNER', icon: 'brush', status: 'offline' },
-	];
+	useEffect(() => {
+		const fetchRoster = async () => {
+			try {
+				const res = await fetch('/api/agents');
+				const json = await res.json();
+				if (json.status === 200) {
+					setAgentRoster(json.data);
+					if (json.data.length > 0 && !selectedAgent) {
+						setSelectedAgent(json.data[0].id);
+					}
+				}
+			} catch (err) {
+				console.error('Failed to fetch agent roster:', err);
+			}
+		};
+		fetchRoster();
+	}, []);
 
-	const selectedAgentData = {
-		id: selectedAgent,
-		role: 'ARCHITECT',
-		created: '2024.03.12 / 14:32:01',
-		lastActivity: '2024.03.12 / 14:32:05',
-		project: 'PRJ-BETA-42',
-		history: [
-			{ id: 'PRJ-ALPHA-99', status: 'COMPLETED', color: 'var(--outline)' },
-			{ id: 'PRJ-BETA-42', status: 'ACTIVE', color: 'var(--primary-cyan)' },
-			{ id: 'PRJ-GAMMA-01', status: 'PENDING', color: 'var(--alert-amber)' },
-		],
-		artifacts: [
-			{ name: 'architecture_v2.md', type: 'description' },
-			{ name: 'topology_map.png', type: 'image' },
-			{ name: 'schema_definition.json', type: 'data_object' },
-		],
-		tasks: [
-			{ id: 'PRJ-BETA-42', desc: 'Optimized database query routing logic.', time: 'T-MINUS 12 MIN', active: true },
-			{ id: 'PRJ-BETA-42', desc: 'Generated revised API contract documentation.', time: 'T-MINUS 45 MIN' },
-		]
+	useEffect(() => {
+		if (!selectedAgent) return;
+
+		const fetchDetails = async () => {
+			try {
+				const res = await fetch(`/api/agents/${selectedAgent}`);
+				const json = await res.json();
+				if (json.status === 200) {
+					setSelectedAgentData(json.data);
+				}
+			} catch (err) {
+				console.error('Failed to fetch agent details:', err);
+			}
+		};
+		fetchDetails();
+		const interval = setInterval(fetchDetails, 5000);
+		return () => clearInterval(interval);
+	}, [selectedAgent]);
+
+	const getIcon = (role) => {
+		const r = role?.toLowerCase() || '';
+		if (r.includes('architect')) return 'architecture';
+		if (r.includes('developer') || r.includes('node')) return 'code';
+		if (r.includes('designer')) return 'brush';
+		if (r.includes('analyst')) return 'analytics';
+		return 'memory';
 	};
+
+	if (!selectedAgentData && agentRoster.length > 0) {
+		return (
+			<div className="flex-center" style={{ height: '100%', color: 'var(--outline)' }}>
+				<div className="mono-data">SYNCHRONIZING WITH NEURAL NODES...</div>
+			</div>
+		);
+	}
+
+	if (agentRoster.length === 0) {
+		return (
+			<div className="flex-center" style={{ height: '100%', color: 'var(--outline)' }}>
+				<div className="mono-data">NO AGENTS DETECTED IN GRID.</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="grid-container" style={{ alignItems: 'start' }}>
@@ -180,13 +216,13 @@ const Agents = () => {
 						onClick={() => setSelectedAgent(agent.id)}
 					>
 						<div className="flex-center-gap-8">
-							<span className="material-symbols-outlined text-primary-cyan" style={{ fontSize: '20px' }}>{agent.icon}</span>
+							<span className="material-symbols-outlined text-primary-cyan" style={{ fontSize: '20px' }}>{getIcon(agent.id)}</span>
 							<div>
 								<div className="label-caps" style={{ fontSize: '10px', color: 'var(--on-surface)' }}>{agent.id}</div>
 								<div className="mono-data" style={{ fontSize: '10px', color: 'var(--outline)', lineHeight: 1 }}>ROLE: {agent.role}</div>
 							</div>
 						</div>
-						<div className="status-pip" style={{ backgroundColor: agent.status === 'online' ? 'var(--primary-cyan)' : agent.status === 'warning' ? 'var(--alert-amber)' : 'var(--outline)' }}></div>
+						<div className="status-pip" style={{ backgroundColor: agent.status === 'online' ? 'var(--primary-cyan)' : 'var(--outline)' }}></div>
 					</button>
 				))}
 			</aside>
@@ -205,12 +241,12 @@ const Agents = () => {
 							<span style={{ color: 'var(--outline-variant)' }}>/</span>
 							<div className="agent-meta-item">
 								<span className="material-symbols-outlined text-primary-cyan" style={{ fontSize: '14px' }}>calendar_today</span>
-								<span className="uppercase">CREATED: {selectedAgentData.created}</span>
+								<span className="uppercase">CREATED: {new Date(selectedAgentData.created).toLocaleDateString()}</span>
 							</div>
 							<span style={{ color: 'var(--outline-variant)' }}>/</span>
 							<div className="agent-meta-item">
 								<span className="material-symbols-outlined text-primary-cyan" style={{ fontSize: '14px' }}>history</span>
-								<span className="uppercase">LAST ACTIVITY: {selectedAgentData.lastActivity}</span>
+								<span className="uppercase">LAST ACTIVITY: {new Date(selectedAgentData.lastActivity).toLocaleTimeString()}</span>
 							</div>
 							<span style={{ color: 'var(--outline-variant)' }}>/</span>
 							<div className="agent-meta-item">
@@ -229,11 +265,12 @@ const Agents = () => {
 						</h2>
 						<ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
 							{selectedAgentData.history.map((h, i) => (
-								<li key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: i < 2 ? '1px solid var(--outline-variant)' : 'none', paddingBottom: '8px' }}>
+								<li key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: i < selectedAgentData.history.length - 1 ? '1px solid var(--outline-variant)' : 'none', paddingBottom: '8px' }}>
 									<span className="mono-data" style={{ fontSize: '12px' }}>{h.id}</span>
-									<span className="mono-data" style={{ fontSize: '10px', color: h.color }}>{h.status}</span>
+									<span className="mono-data" style={{ fontSize: '10px', color: h.status === 'COMPLETED' ? 'var(--outline)' : 'var(--primary-cyan)' }}>{h.status}</span>
 								</li>
 							))}
+							{selectedAgentData.history.length === 0 && <div className="mono-data" style={{ fontSize: '10px', color: 'var(--outline)' }}>No deployment history.</div>}
 						</ul>
 					</section>
 
@@ -245,10 +282,11 @@ const Agents = () => {
 						<div className="artifact-grid">
 							{selectedAgentData.artifacts.map((art, i) => (
 								<a key={i} href="#" className="artifact-link">
-									<span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--outline)' }}>{art.type}</span>
+									<span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--outline)' }}>{art.type === 'image' ? 'image' : 'description'}</span>
 									<span className="mono-data" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{art.name}</span>
 								</a>
 							))}
+							{selectedAgentData.artifacts.length === 0 && <div className="mono-data" style={{ fontSize: '10px', color: 'var(--outline)' }}>No artifacts generated.</div>}
 						</div>
 					</section>
 				</div>
@@ -266,9 +304,10 @@ const Agents = () => {
 									<span className="mono-data" style={{ fontSize: '10px', backgroundColor: 'var(--surface-variant)', padding: '0 4px', border: '1px solid var(--outline-variant)' }}>{task.id}</span>
 									<span className="mono-data" style={{ fontSize: '12px' }}>{task.desc}</span>
 								</div>
-								<span className="mono-data" style={{ fontSize: '10px', color: 'var(--outline)' }}>{task.time}</span>
+								<span className="mono-data" style={{ fontSize: '10px', color: 'var(--outline)' }}>{new Date(task.time).toLocaleString()}</span>
 							</div>
 						))}
+						{selectedAgentData.tasks.length === 0 && <div className="mono-data" style={{ fontSize: '10px', color: 'var(--outline)' }}>No tasks in stream.</div>}
 					</div>
 				</section>
 
@@ -282,10 +321,12 @@ const Agents = () => {
 						</div>
 					</div>
 					<div className="terminal-log-stream mono-data">
-						<div className="flex-gap-8"><span style={{ color: 'var(--outline)' }}>[14:32:01]</span> <span>Initiating analysis of user authentication flow...</span></div>
-						<div className="flex-gap-8"><span style={{ color: 'var(--outline)' }}>[14:32:05]</span> <span className="text-primary-cyan">Identified potential bottleneck in token validation.</span></div>
-						<div className="flex-gap-8"><span style={{ color: 'var(--outline)' }}>[14:32:12]</span> <span>Drafting proposed structural changes...</span></div>
-						<div className="flex-gap-8"><span style={{ color: 'var(--outline)' }}>[14:32:45]</span> <span>Awaiting peer review from Agent_Dev_Alpha.</span></div>
+						{selectedAgentData.recentLogs?.map((log, i) => (
+							<div key={i} className="flex-gap-8">
+								<span style={{ color: 'var(--outline)' }}>[{new Date(log.created).toLocaleTimeString()}]</span>
+								<span style={{ color: log.level === 'error' ? 'var(--error)' : 'var(--on-surface)' }}>{log.message}</span>
+							</div>
+						))}
 						<div className="flex-gap-8" style={{ marginTop: '8px' }}>
 							<span className="text-primary-cyan">&gt;_</span>
 							<span className="terminal-cursor pulse"></span>

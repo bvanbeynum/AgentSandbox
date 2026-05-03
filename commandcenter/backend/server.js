@@ -18,6 +18,8 @@ app.get('/api/overview', api.getOverview);
 app.get('/api/tasks', api.getTasks);
 app.get('/api/logs', api.getLogs);
 app.get('/api/artifacts', api.getArtifacts);
+app.get('/api/agents', api.getAgents);
+app.get('/api/agents/:id', api.getAgentDetails);
 
 const startServer = async () => {
 	if (IS_DEV) {
