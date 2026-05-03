@@ -1,6 +1,6 @@
 # Application configurations
 config.js
-*_mockup/
+# *_mockup/
 
 # Dependencies
 node_modules/
