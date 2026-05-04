@@ -11,6 +11,21 @@ async function main() {
 		await client.connect();
 		const db = client.db(config.db.dbName);
 		const agentsCollection = db.collection("agents");
+		const agentToolsCollection = db.collection("agentTools");
+
+		// Fetch all tool definitions
+		const activeToolDefs = await agentToolsCollection.find({
+			$or: [
+				{ inactiveDate: { $exists: false } },
+				{ inactiveDate: null }
+			]
+		}).toArray();
+
+		const mappedTools = activeToolDefs.map(doc => ({
+			name: doc.name,
+			description: doc.description,
+			parameters: doc.parameters
+		}));
 
 		// Fetch all agents that are not inactive
 		const activeAgents = await agentsCollection.find({
@@ -31,7 +46,12 @@ async function main() {
 			const { agentName, instructions, tools } = agentData;
 			
 			console.log(`Starting agent: ${agentName}`);
-			const agent = new DynamicAgent(agentName, instructions, tools || []);
+			
+			// Map string names to full tool objects from the database
+			const agentToolsArray = tools || [];
+			const agentTools = mappedTools.filter(tool => agentToolsArray.includes(tool.name));
+
+			const agent = new DynamicAgent(agentName, instructions, agentTools);
 			
 			// Initialize is async and starts listening (change streams)
 			// We don't await it to block, but we want to catch errors

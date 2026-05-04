@@ -1,16 +1,14 @@
 import { MongoClient } from "mongodb";
 import { GoogleGenAI } from "@google/genai";
 import { config } from "../config.js";
-import { allTools, allHandlers } from "../tools/common.js";
+import { allHandlers } from "../tools/common.js";
 
 export class DynamicAgent {
-	constructor(agentName, instructions, toolsArray = [], skills = []) {
+	constructor(agentName, instructions, tools = [], skills = []) {
 		this.role = agentName;
 		this.instructions = instructions;
 		this.skills = skills;
-
-		// Map tool names (strings) to actual function declarations
-		this.tools = allTools.filter(tool => toolsArray.includes(tool.name));
+		this.tools = tools;
 
 		// Initialize Gemini with API Key
 		this.ai = new GoogleGenAI({

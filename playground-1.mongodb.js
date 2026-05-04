@@ -6,18 +6,19 @@ use("agentSandbox");
 //   status: "pending",
 //   payload: { 
 //     instruction: `
-// Build an app that is a dashboard for wrestling coaches to visualize 
-// the rankings of wrestlers. Use the wrestler rankings in the fortmill 
-// mongo DB database. Identified the different dimensions available and 
-// allow the user to dynamically change the results based on selecting 
-// the different dimensions (e.g. state, team, event, etc)`
+// Build an app that will allow the user to upload a screenshot
+// of a wrestling dual book page, and then call Gemini to translate
+// the image into structured data. The structured data should include
+// the opponent team name, each weight class, the two wrestlers, each move
+// and the points (T3, N4, etc) and the final score for the match.
+// `
 //   },
 //   metadata: { 
-//     projectName: "wrestlerranking"
+//     projectName: "scorebook"
 //   }
 // });
 
-// db.tasks.find({});
+// db.tasks.find({}, {}, { sort: { startedAt: -1 } });
 // db.agentLogs.find({}).sort({ created: 1 });
 // db.agents.find({}).sort({ created: 1 });
 
@@ -82,3 +83,27 @@ use("agentSandbox");
 // });
 
 // db.agents.find({}, {}, { sort: { created: -1 } });
+
+// db.agentTools.insertOne({
+// 	name: "createDirectoryStructure",
+// 	description: "Creates multiple directories at once for project scaffolding in the project directory.",
+// 	parameters: {
+// 		type: "object",
+// 		properties: {
+// 			directories: { 
+// 				type: "array", 
+// 				items: { type: "string" },
+// 				description: "List of paths like ['src/models', 'src/routes']"
+// 			},
+// 			projectName: { type: "string" }
+// 		},
+// 		required: ["directories", "projectName"]
+// 	},
+// 	created: new Date(),
+// 	modified: new Date(),
+// 	inactiveDate: null
+// });
+
+// db.agentTools.find({}, {}, { sort: { created: -1 } });
+
+db.agents.updateMany({}, { $rename: { "agentName": "name" } });
