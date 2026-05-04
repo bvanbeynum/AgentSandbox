@@ -1,17 +1,14 @@
-x-base-agent: &base-agent
-  build:
-    context: .
-    dockerfile: Dockerfile
-  image: agent
-  volumes:
-    - .:/app                # Mount source code
-    - /app/node_modules     # Keep node_modules internal to container
-    - ./workspace:/app/workspace # Shared code output folder
-    - /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
-
 services:
-  dynamic-agents:
-    <<: *base-agent
-    container_name: dynamic_agents
+  agents:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agents-image
+    container_name: agents
+    volumes:
+      - .:/app                # Mount source code
+      - /app/node_modules     # Keep node_modules internal to container
+      - ./workspace:/app/workspace # Shared code output folder
+      - /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
     command: ["node", "./agents/runAgents.js"]
     restart: always
