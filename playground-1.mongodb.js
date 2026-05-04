@@ -19,6 +19,7 @@ use("agentSandbox");
 
 // db.tasks.find({});
 // db.agentLogs.find({}).sort({ created: 1 });
+// db.agents.find({}).sort({ created: 1 });
 
 // db.tasks.deleteMany({});
 // db.agentLogs.deleteMany({});

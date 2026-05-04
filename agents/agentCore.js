@@ -1,13 +1,16 @@
 import { MongoClient } from "mongodb";
 import { GoogleGenAI } from "@google/genai";
 import { config } from "../config.js";
+import { allTools, allHandlers } from "../tools/common.js";
 
-export class BaseAgent {
-	constructor(role, instructions, tools = [], skills = []) {
-		this.role = role;
+export class DynamicAgent {
+	constructor(agentName, instructions, toolsArray = [], skills = []) {
+		this.role = agentName;
 		this.instructions = instructions;
-		this.tools = tools;
 		this.skills = skills;
+
+		// Map tool names (strings) to actual function declarations
+		this.tools = allTools.filter(tool => toolsArray.includes(tool.name));
 
 		// Initialize Gemini with API Key
 		this.ai = new GoogleGenAI({
@@ -24,7 +27,7 @@ export class BaseAgent {
 			this.tasksCollection = this.db.collection("tasks");
 			this.logsCollection = this.db.collection("agentLogs");
 
-			console.log(`[${this.role}] Connected to remote Blackboard at data.beynum.com`);
+			console.log(`[${this.role}] Dynamic Agent Initialized. Connected to remote Blackboard.`);
 			this.listenForTasks();
 		} catch (error) {
 			console.error(`[${this.role}] Connection Failed:`, error.message);
@@ -51,7 +54,6 @@ export class BaseAgent {
 			}}
 		];
 
-		// Change streams require a Replica Set on the remote server
 		const changeStream = this.tasksCollection.watch(pipeline, { 
 			fullDocument: "updateLookup" 
 		});
@@ -63,7 +65,6 @@ export class BaseAgent {
 
 		changeStream.on("error", (error) => {
 			console.error(`[${this.role}] Change Stream Error:`, error);
-			// Logic to restart the stream if the network blips
 			setTimeout(() => this.listenForTasks(), 5000);
 		});
 	}
@@ -103,7 +104,6 @@ export class BaseAgent {
 			clarifications: clarifications
 		});
 
-		// Only set to "done" if a tool didn't already change the status (e.g., to "awaiting_user_input")
 		const currentTask = await this.tasksCollection.findOne({ _id: task._id });
 		if (currentTask.status === "active") {
 			await this.tasksCollection.updateOne(
@@ -116,5 +116,100 @@ export class BaseAgent {
 			);
 			await this.log(taskId, "info", "Task Lifecycle Completed Successfully.");
 		}
+	}
+
+	async executeReasoning(payload) {
+		const taskId = payload.taskId;
+		const projectName = payload.metadata?.projectName || "default-project";
+
+		const chat = this.ai.chats.create({
+			model: "gemini-2.5-flash",
+			config: {
+				systemInstruction: this.instructions,
+				tools: [{ functionDeclarations: this.tools }]
+			}
+		});
+
+		// Format clarification history
+		let historyStr = "";
+		if (payload.clarifications && payload.clarifications.length > 0) {
+			historyStr = payload.clarifications.map((c, i) => 
+				`Round ${i + 1}:\nAgent Asked:\n${c.questions}\nUser Answered:\n${c.answer || "No answer yet."}`
+			).join("\n\n---\n\n");
+		} else {
+			historyStr = "None yet.";
+		}
+
+		let context = `
+			Project Name: ${projectName}
+			User Request: ${payload.instruction}
+			
+			Clarification History:
+			${historyStr}
+		`;
+
+		await this.log(taskId, "info", "Reasoning Loop Started");
+
+		let isComplete = false;
+		let finalResponse = "";
+		let currentMessage = context;
+
+		while (!isComplete) {
+			try {
+				const response = await chat.sendMessage({ message: currentMessage });
+
+				if (!response.candidates || response.candidates.length === 0) {
+					break;
+				}
+
+				const parts = response.candidates[0].content?.parts || [];
+				const text = parts.filter(p => p.text).map(p => p.text).join(" ").trim();
+				const calls = parts.filter(p => p.functionCall);
+
+				if (text) {
+					await this.log(taskId, "info", "Reasoning Output", { text });
+					finalResponse = text;
+				}
+
+				if (calls.length > 0) {
+					const toolResponses = [];
+
+					for (const call of calls) {
+						const { name, args } = call.functionCall;
+						await this.log(taskId, "debug", `Executing Tool: ${name}`, { args });
+
+						const toolResult = await allHandlers[name]({
+							...args,
+							taskId,
+							projectName,
+							agentRole: this.role,
+							metadata: payload.metadata
+						});
+
+						await this.log(taskId, "debug", `Tool Result: ${name}`, { toolResult });
+
+						// Check for break signal (e.g., from askClarifyingQuestions)
+						if (toolResult.breakLoop) {
+							await this.log(taskId, "info", "Reasoning Loop paused by tool signal.");
+							return toolResult.message || "Execution paused.";
+						}
+
+						toolResponses.push({
+							functionResponse: { name, response: toolResult }
+						});
+					}
+
+					currentMessage = toolResponses;
+				}
+				else {
+					isComplete = true;
+				}
+			} catch (error) {
+				await this.log(taskId, "error", "Error during reasoning loop", { error: error.message });
+				return `Error: ${error.message}`;
+			}
+		}
+
+		return finalResponse;
 	}
 }

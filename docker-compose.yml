@@ -10,37 +10,8 @@ x-base-agent: &base-agent
     - /home/bvanbeynum/dev/agentSandbox:/app/projects # Shared projects folder
 
 services:
-  business-analyst:
+  dynamic-agents:
     <<: *base-agent
-    container_name: ba_agent
-    command: ["node", "./agents/baAgent.js"]
-
-  software-architect:
-    <<: *base-agent
-    container_name: sa_agent
-    command: ["node", "./agents/softwareArchitectAgent.js"]
-  
-  database-architect:
-    <<: *base-agent
-    container_name: db_agent
-    command: ["node", "./agents/dbArchitectureAgent.js"]
-
-  network-architect:
-    <<: *base-agent
-    container_name: network_agent
-    command: ["node", "./agents/netArchitectAgent.js"]
-
-  project-setup-agent:
-    <<: *base-agent
-    container_name: project_setup_agent
-    command: ["node", "./agents/projectSetupAgent.js"]
-
-  designer-agent:
-    <<: *base-agent
-    container_name: designer_agent
-    command: ["node", "./agents/designerAgent.js"]
-
-  node-developer:
-    <<: *base-agent
-    container_name: node_agent
-    command: ["node", "./agents/nodeAgent.js"]
+    container_name: dynamic_agents
+    command: ["node", "./agents/runAgents.js"]
+    restart: always
