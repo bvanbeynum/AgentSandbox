@@ -15,31 +15,40 @@ use("agentSandbox");
 //   },
 //   metadata: { 
 //     projectName: "scorebook"
-//   }
+//   },
+//   created: new Date(),
+//   modified: new Date()
 // });
 
-// db.tasks.find({}, {}, { sort: { startedAt: -1 } });
-// db.agentLogs.find({}).sort({ created: 1 });
+db.tasks.find({"metadata.projectName": "scorebook"}, {}, { sort: { created: -1 } });
+// db.agentLogs.find({taskId: "69f94dc668975d4e69d86ee5"}).sort({ created: -1 });
 // db.agents.find({}).sort({ created: 1 });
 
-// db.tasks.deleteMany({});
-// db.agentLogs.deleteMany({});
+// db.tasks.deleteMany({_id: ObjectId("69f94dc668975d4e69d86ee5")});
+// db.agentLogs.deleteMany({taskId: "69f94dc668975d4e69d86ee5"});
 // db.artifacts.deleteMany({});
 
+// db.tasks.updateOne(
+//   { _id: ObjectId("69f8d9c6b29831a485dcf4a3") },
+//   { 
+// 	$set: { 
+// 	  "status": "pending",
+// 	  "result": null
+// 	}
+// });
 
 // db.tasks.updateOne(
-//   { _id: ObjectId("69f66778dc2adba27eedd527") },
+//   { _id: ObjectId("69f94dc668975d4e69d86ee5") },
 //   { 
 //     $set: { 
 //       "status": "pending", 
 //       "payload.userResponses": `
-// 1. none
-// 2. a, b, d
-// 3. a, b, d
-// 4. b, d
-// 5. no, only rank
-// 6. no
-// 7. no
+// 1. a
+// 2. a
+// 3. a
+// 4. a
+// 5. a
+// 6. a
 // `
 //     } 
 //   }
@@ -105,5 +114,3 @@ use("agentSandbox");
 // });
 
 // db.agentTools.find({}, {}, { sort: { created: -1 } });
-
-db.agents.updateMany({}, { $rename: { "agentName": "name" } });

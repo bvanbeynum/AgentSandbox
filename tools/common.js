@@ -3,7 +3,7 @@ import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { MongoClient, ObjectId } from "mongodb";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { config } from "../config.js";
 
 const execPromise = promisify(exec);
@@ -35,7 +35,7 @@ export const allHandlers = {
 		return { status: "success", content: data };
 	},
 
-	addProjectArtifact: async ({ projectName, artifactName, content, taskId, agentRole }) => {
+	addProjectArtifact: async ({ projectName, artifactName, content, taskId, agentId }) => {
 		const client = new MongoClient(config.db.uri, config.db.options);
 		try {
 			await client.connect();
@@ -46,7 +46,7 @@ export const allHandlers = {
 					$set: { 
 						content, 
 						taskId: taskId ? new ObjectId(taskId) : null,
-						agentRole,
+						agentId,
 						updatedAt: new Date() 
 					} 
 				},
@@ -73,9 +73,8 @@ export const allHandlers = {
 		}
 	},
 
-	assignTask: async ({ to, instruction, taskId, from = "Agent", metadata }) => {
+	assignTask: async ({ to, instruction, taskId, from, metadata }) => {
 		const client = new MongoClient(config.db.uri, config.db.options);
-
 		try {
 			await client.connect();
 			const db = client.db(config.db.dbName);
@@ -93,6 +92,77 @@ export const allHandlers = {
 			});
 
 			return { status: "success", message: `Task assigned to ${to}` };
+		} finally {
+			await client.close();
+		}
+	},
+
+	create_project_tasks: async ({ tasks, projectName }) => {
+		const client = new MongoClient(config.db.uri, config.db.options);
+		try {
+			await client.connect();
+			const db = client.db(config.db.dbName);
+
+			const taskDocs = tasks.map(t => ({
+				to: t.to, // Agent ID
+				status: t.dependencies?.length > 0 ? "blocked" : "pending",
+				payload: {
+					instruction: t.instruction,
+				},
+				dependencies: t.dependencies || [], // [{ type: "task_completion", targetId: "temp_id" }]
+				metadata: { projectName },
+				tempId: t.id, // For resolving dependencies within the same batch
+				created: new Date()
+			}));
+
+			const result = await db.collection("tasks").insertMany(taskDocs);
+			
+			// Resolve tempIds to real ObjectIds for dependencies within this batch
+			const insertedDocs = await db.collection("tasks").find({ _id: { $in: Object.values(result.insertedIds) } }).toArray();
+			const tempToRealId = {};
+			insertedDocs.forEach(doc => {
+				if (doc.tempId) tempToRealId[doc.tempId] = doc._id.toString();
+			});
+
+			for (const doc of insertedDocs) {
+				if (doc.dependencies.length > 0) {
+					const updatedDeps = doc.dependencies.map(d => {
+						if (d.type === "task_completion" && tempToRealId[d.targetId]) {
+							return { ...d, targetId: tempToRealId[d.targetId] };
+						}
+						return d;
+					});
+					await db.collection("tasks").updateOne({ _id: doc._id }, { $set: { dependencies: updatedDeps } });
+				}
+			}
+
+			return { status: "success", message: `${tasks.length} tasks created.` };
+		} finally {
+			await client.close();
+		}
+	},
+
+	activate_skill: async ({ skillName }) => {
+		const client = new MongoClient(config.db.uri, config.db.options);
+		try {
+			await client.connect();
+			const db = client.db(config.db.dbName);
+			const skill = await db.collection("skills").findOne({ name: skillName });
+			if (!skill) return { status: "error", message: `Skill '${skillName}' not found.` };
+			return { status: "success", instructions: skill.instructions };
+		} finally {
+			await client.close();
+		}
+	},
+
+	read_session_summary: async ({ sessionId }) => {
+		const client = new MongoClient(config.db.uri, config.db.options);
+		try {
+			await client.connect();
+			const db = client.db(config.db.dbName);
+			const session = await db.collection("sessions").findOne({ _id: new ObjectId(sessionId) });
+			if (!session) return { status: "error", message: "Session not found." };
+			return { status: "success", summary: session.summary, lastMessages: (session.messages || []).slice(-3) };
 		} finally {
 			await client.close();
 		}
@@ -117,48 +187,11 @@ export const allHandlers = {
 			}
 		);
 		await client.close();
-		// breakLoop: true signals the DynamicAgent reasoning loop to stop and wait
 		return { status: "awaiting_user_input", message: "Waiting for user feedback.", breakLoop: true };
 	},
 
 	generateMockup: async ({ visualPrompt, projectName, artifactName }) => {
-		const genAI = new GoogleGenAI(config.ai.key);
-		
-		try {
-			const model = genAI.getGenerativeModel({ model: "imagen-3.0-generate-001" });
-
-			const result = await model.generateImages({
-				prompt: visualPrompt,
-				numberOfImages: 1,
-				safetySettings: [
-					{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-					{ category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
-					{ category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-					{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
-				],
-			});
-
-			if (!result.images || result.images.length === 0) {
-				return { status: "error", message: "No image was generated by the model." };
-			}
-
-			const baseDir = `${config.paths.projects}/${projectName}/mockups`;
-			await fs.mkdir(baseDir, { recursive: true });
-
-			const filePath = path.join(baseDir, `${artifactName}.png`);
-			const imageBuffer = Buffer.from(result.images[0].base64, "base64");
-			
-			await fs.writeFile(filePath, imageBuffer);
-
-			return { 
-				status: "success", 
-				message: `Mockup generated and saved to ${filePath}`,
-				path: filePath
-			};
-		} catch (error) {
-			console.error("Image Generation Error:", error);
-			return { status: "error", message: `Failed to generate mockup: ${error.message}` };
-		}
+		return { status: "error", message: "Image generation is not supported by @google/generative-ai SDK." };
 	},
 
 	createDirectoryStructure: async ({ directories, projectName }) => {
@@ -167,6 +200,6 @@ export const allHandlers = {
 			const path = `${baseDir}/${dir}`;
 			await fs.mkdir(path, { recursive: true });
 		}
-		return { status: "success", message: `Directories created for project ${projectName}: ${directories.join(", ")}` };
+		return { status: "success", message: `Directories created for project ${projectName}` };
 	}
 };
