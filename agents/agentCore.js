@@ -89,27 +89,33 @@ export class DynamicAgent {
 			body.tool_choice = "auto";
 		}
 
-		const response = await fetch(url, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(body)
-		});
+		try {
+			const response = await fetch(url, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+				signal: AbortSignal.timeout(1800000) // 30 minute timeout for slow RPi generation
+			});
 
-		if (!response.ok) {
-			const errorText = await response.text();
-			throw new Error(`Ollama API Error (${response.status}): ${errorText}`);
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(`Ollama API Error (${response.status}): ${errorText}`);
+			}
+
+			const data = await response.json();
+			const choice = data.choices[0];
+			
+			return {
+				text: choice.message.content?.trim() || "",
+				toolCalls: choice.message.tool_calls?.map(tc => ({
+					name: tc.function.name,
+					args: JSON.parse(tc.function.arguments)
+				})) || []
+			};
+		} catch (error) {
+			// Re-throw to be handled by caller's log mechanism
+			throw error;
 		}
-
-		const data = await response.json();
-		const choice = data.choices[0];
-		
-		return {
-			text: choice.message.content?.trim() || "",
-			toolCalls: choice.message.tool_calls?.map(tc => ({
-				name: tc.function.name,
-				args: JSON.parse(tc.function.arguments)
-			})) || []
-		};
 	}
 
 	async initialize() {
@@ -268,7 +274,10 @@ export class DynamicAgent {
 			const result = await this.callModel(messages, this.tools);
 			return result.text;
 		} catch (error) {
-			await this.log(session._id.toString(), "error", "Conversation Error", { error: error.message });
+			await this.log(session._id.toString(), "error", "Conversation Error", { 
+				error: error.message,
+				cause: error.cause ? (error.cause.message || error.cause) : null
+			});
 			return `Error: ${error.message}`;
 		}
 	}
@@ -390,7 +399,10 @@ export class DynamicAgent {
 					isComplete = true;
 				}
 			} catch (error) {
-				await this.log(taskId, "error", "Error during reasoning loop", { error: error.message });
+				await this.log(taskId, "error", "Error during reasoning loop", { 
+					error: error.message,
+					cause: error.cause ? (error.cause.message || error.cause) : null
+				});
 				return `Error: ${error.message}`;
 			}
 		}
