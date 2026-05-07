@@ -4,15 +4,112 @@ import { config } from "../config.js";
 import { allHandlers } from "../tools/common.js";
 
 export class DynamicAgent {
-	constructor(agentId, agentName, instructions, tools = [], skills = []) {
+	constructor(agentId, agentName, instructions, tools = [], skills = [], modelConfig = null) {
 		this.id = agentId;
 		this.role = agentName; // Kept as 'role' for logging and internal reference
 		this.instructions = instructions;
 		this.skills = skills;
 		this.tools = tools;
+		this.modelConfig = modelConfig;
 
-		// Initialize Gemini with API Key
-		this.genAI = new GoogleGenerativeAI(config.ai.key);
+		// Initialize Gemini with API Key if present, otherwise rely on HTTP for Ollama
+		if (this.modelConfig?.apikey) {
+			this.genAI = new GoogleGenerativeAI(this.modelConfig.apikey);
+		} else if (config.ai.key && (!this.modelConfig || this.modelConfig.apikey === undefined)) {
+			// Fallback to default config if no model specific key provided and no URL present
+			if (!this.modelConfig?.url) {
+				this.genAI = new GoogleGenerativeAI(config.ai.key);
+			}
+		}
+	}
+
+	async callModel(messages, tools = []) {
+		const modelName = this.modelConfig?.modelName || "gemini-2.0-flash";
+		
+		if (this.modelConfig?.url) {
+			return this.callOllama(modelName, messages, tools);
+		} else {
+			return this.callGemini(modelName, messages, tools);
+		}
+	}
+
+	async callGemini(modelName, messages, tools) {
+		const model = this.genAI.getGenerativeModel({
+			model: modelName,
+			systemInstruction: this.instructions,
+			tools: tools.length > 0 ? [{ functionDeclarations: tools }] : []
+		});
+
+		// Map messages to Gemini history format
+		const history = messages.slice(0, -1).map(m => ({
+			role: m.role === "user" ? "user" : "model",
+			parts: [{ text: m.content }]
+		}));
+		const latestMessage = messages[messages.length - 1].content;
+
+		const chat = model.startChat({ history });
+		const result = await chat.sendMessage(latestMessage);
+		const response = result.response;
+		
+		return {
+			text: response.text().trim(),
+			toolCalls: response.functionCalls()?.map(call => ({
+				name: call.name,
+				args: call.args
+			})) || []
+		};
+	}
+
+	async callOllama(modelName, messages, tools) {
+		const url = `${this.modelConfig.url}/v1/chat/completions`;
+		
+		// Map messages to OpenAI format
+		const formattedMessages = [
+			{ role: "system", content: this.instructions },
+			...messages.map(m => ({
+				role: m.role === "agent" ? "assistant" : m.role,
+				content: m.content
+			}))
+		];
+
+		const body = {
+			model: modelName,
+			messages: formattedMessages
+		};
+
+		if (tools.length > 0) {
+			body.tools = tools.map(t => ({
+				type: "function",
+				function: {
+					name: t.name,
+					description: t.description,
+					parameters: t.parameters
+				}
+			}));
+			body.tool_choice = "auto";
+		}
+
+		const response = await fetch(url, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body)
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(`Ollama API Error (${response.status}): ${errorText}`);
+		}
+
+		const data = await response.json();
+		const choice = data.choices[0];
+		
+		return {
+			text: choice.message.content?.trim() || "",
+			toolCalls: choice.message.tool_calls?.map(tc => ({
+				name: tc.function.name,
+				args: JSON.parse(tc.function.arguments)
+			})) || []
+		};
 	}
 
 	async initialize() {
@@ -102,7 +199,7 @@ export class DynamicAgent {
 			await this.sessionsCollection.updateOne(
 				{ _id: session._id },
 				{ 
-					$push: { messages: { role: "model", content: result, timestamp: new Date() } },
+					$push: { messages: { role: "agent", content: result, timestamp: new Date() } },
 					$set: { status: "user_turn", completedAt: new Date() } 
 				}
 			);
@@ -114,7 +211,6 @@ export class DynamicAgent {
 		const sessionId = session._id.toString();
 		await this.log(sessionId, "info", "Summarizing session history for context protection.");
 
-		const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 		const historyText = session.messages.map(m => `${m.role}: ${m.content}`).join("\n");
 		
 		const prompt = `
@@ -130,13 +226,13 @@ export class DynamicAgent {
 			Summary:
 		`;
 
-		const result = await model.generateContent(prompt);
-		const summary = result.response.text();
+		const result = await this.callModel([{ role: "user", content: prompt }]);
+		const summary = result.text;
 
 		// Update session: Save summary and truncate messages to keep only the last 2 turns
 		const remainingMessages = [
 			...session.messages.slice(-2),
-			{ role: "model", content: latestModelResponse, timestamp: new Date() }
+			{ role: "agent", content: latestModelResponse, timestamp: new Date() }
 		];
 
 		await this.sessionsCollection.updateOne(
@@ -153,27 +249,24 @@ export class DynamicAgent {
 	}
 
 	async executeConversation(session) {
-		const model = this.genAI.getGenerativeModel({
-			model: "gemini-2.5-flash", // Still using Gemini for now as per plan Phase 2
-			systemInstruction: this.instructions,
-			tools: [{ functionDeclarations: this.tools }]
-		});
-
 		// Prepare history from session.messages
-		const history = (session.messages || []).map(m => ({
-			role: m.role === "user" ? "user" : "model",
-			parts: [{ text: m.content }]
+		const messages = (session.messages || []).map(m => ({
+			role: m.role === "user" ? "user" : "agent",
+			content: m.content
 		}));
 
+		if (messages.length === 0) {
+			messages.push({ role: "user", content: "Start the conversation." });
+		}
+
 		// Use rolling summary if it exists to prime the context
-		let initialContext = session.summary ? `Summary of previous discussion: ${session.summary}\n\n` : "";
-		
-		const chat = model.startChat({ history });
-		const latestMessage = history.length > 0 ? history[history.length - 1].parts[0].text : "Start the conversation.";
+		if (session.summary) {
+			messages.unshift({ role: "user", content: `Summary of previous discussion: ${session.summary}` });
+		}
 
 		try {
-			const result = await chat.sendMessage(latestMessage);
-			return result.response.text();
+			const result = await this.callModel(messages, this.tools);
+			return result.text;
 		} catch (error) {
 			await this.log(session._id.toString(), "error", "Conversation Error", { error: error.message });
 			return `Error: ${error.message}`;
@@ -234,14 +327,6 @@ export class DynamicAgent {
 		const taskId = payload.taskId;
 		const projectName = payload.metadata?.projectName || "default-project";
 
-		const model = this.genAI.getGenerativeModel({
-			model: "gemini-2.5-flash", 
-			systemInstruction: this.instructions,
-			tools: [{ functionDeclarations: this.tools }]
-		});
-
-		const chat = model.startChat({ history: [] });
-
 		// Format clarification history
 		let historyStr = "";
 		const clarifications = payload.clarifications || [];
@@ -267,24 +352,21 @@ export class DynamicAgent {
 
 		let isComplete = false;
 		let finalResponse = "";
-		let currentMessage = context;
+		let history = [{ role: "user", content: context }];
 
 		while (!isComplete) {
 			try {
-				const result = await chat.sendMessage(currentMessage);
-				const response = result.response;
+				const result = await this.callModel(history, this.tools);
 				
-				const text = response.text().trim();
-				const calls = response.functionCalls();
-
-				if (text) {
-					await this.log(taskId, "info", "Reasoning Output", { text });
-					finalResponse = text;
+				if (result.text) {
+					await this.log(taskId, "info", "Reasoning Output", { text: result.text });
+					finalResponse = result.text;
+					history.push({ role: "agent", content: result.text });
 				}
 
-				if (calls && calls.length > 0) {
-					const toolResponses = [];
-					for (const call of calls) {
+				if (result.toolCalls && result.toolCalls.length > 0) {
+					const toolResults = [];
+					for (const call of result.toolCalls) {
 						const { name, args } = call;
 						const toolResult = await allHandlers[name]({
 							...args,
@@ -300,11 +382,10 @@ export class DynamicAgent {
 							return toolResult.message || "Execution paused.";
 						}
 
-						toolResponses.push({
-							functionResponse: { name, response: toolResult }
-						});
+						toolResults.push(`Tool ${name} result: ${JSON.stringify(toolResult)}`);
 					}
-					currentMessage = toolResponses;
+					// Add tool results as a user-like message to continue the reasoning
+					history.push({ role: "user", content: toolResults.join("\n\n") });
 				} else {
 					isComplete = true;
 				}

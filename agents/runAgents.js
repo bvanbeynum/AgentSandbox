@@ -12,6 +12,7 @@ async function main() {
 		const db = client.db(config.db.dbName);
 		const agentsCollection = db.collection("agents");
 		const agentToolsCollection = db.collection("agentTools");
+		const modelsCollection = db.collection("models");
 
 		// Fetch all tool definitions
 		const activeToolDefs = await agentToolsCollection.find({
@@ -26,6 +27,10 @@ async function main() {
 			description: doc.description,
 			parameters: doc.parameters
 		}));
+
+		// Fetch all model definitions
+		const allModels = await modelsCollection.find({}).toArray();
+		const modelsMap = new Map(allModels.map(m => [m._id.toString(), m]));
 
 		// Fetch all agents that are not inactive
 		const activeAgents = await agentsCollection.find({
@@ -43,15 +48,21 @@ async function main() {
 		console.log(`Initializing ${activeAgents.length} agents...`);
 
 		for (const agentData of activeAgents) {
-			const { _id, name, instructions, tools } = agentData;
+			const { _id, name, instructions, tools, modelId } = agentData;
 
 			console.log(`Starting agent: ${name} (${_id})`);
+
+			// Resolve model config
+			const modelConfig = modelsMap.get(modelId?.toString());
+			if (!modelConfig) {
+				console.warn(`[${name}] Warning: No model configuration found for ID ${modelId}. Agent may fail to call AI.`);
+			}
 
 			// Map string names to full tool objects from the database
 			const agentToolsArray = tools || [];
 			const agentTools = mappedTools.filter(tool => agentToolsArray.includes(tool.name));
 
-			const agent = new DynamicAgent(_id.toString(), name, instructions, agentTools);
+			const agent = new DynamicAgent(_id.toString(), name, instructions, agentTools, [], modelConfig);
 			
 			// Initialize is async and starts listening (change streams)
 			// We don't await it to block, but we want to catch errors
