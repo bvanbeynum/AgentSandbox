@@ -97,46 +97,30 @@ export const allHandlers = {
 		}
 	},
 
-	create_project_tasks: async ({ tasks, projectName }) => {
+	createTask: async ({ to, instruction, metadata, dependencies }) => {
 		const client = new MongoClient(config.db.uri, config.db.options);
 		try {
 			await client.connect();
 			const db = client.db(config.db.dbName);
 
-			const taskDocs = tasks.map(t => ({
-				to: t.to, // Agent ID
-				status: t.dependencies?.length > 0 ? "blocked" : "pending",
+			const taskDoc = {
+				to: to,
+				status: (dependencies && dependencies.length > 0) ? "blocked" : "pending",
 				payload: {
-					instruction: t.instruction,
+					instruction: instruction,
 				},
-				dependencies: t.dependencies || [], // [{ type: "task_completion", targetId: "temp_id" }]
-				metadata: { projectName },
-				tempId: t.id, // For resolving dependencies within the same batch
+				dependencies: dependencies || [],
+				metadata: metadata || {},
 				created: new Date()
-			}));
+			};
 
-			const result = await db.collection("tasks").insertMany(taskDocs);
+			const result = await db.collection("tasks").insertOne(taskDoc);
 			
-			// Resolve tempIds to real ObjectIds for dependencies within this batch
-			const insertedDocs = await db.collection("tasks").find({ _id: { $in: Object.values(result.insertedIds) } }).toArray();
-			const tempToRealId = {};
-			insertedDocs.forEach(doc => {
-				if (doc.tempId) tempToRealId[doc.tempId] = doc._id.toString();
-			});
-
-			for (const doc of insertedDocs) {
-				if (doc.dependencies.length > 0) {
-					const updatedDeps = doc.dependencies.map(d => {
-						if (d.type === "task_completion" && tempToRealId[d.targetId]) {
-							return { ...d, targetId: tempToRealId[d.targetId] };
-						}
-						return d;
-					});
-					await db.collection("tasks").updateOne({ _id: doc._id }, { $set: { dependencies: updatedDeps } });
-				}
-			}
-
-			return { status: "success", message: `${tasks.length} tasks created.` };
+			return { 
+				status: "success", 
+				message: `Task created for ${to}. ID: ${result.insertedId}`,
+				taskId: result.insertedId.toString()
+			};
 		} finally {
 			await client.close();
 		}
@@ -201,5 +185,48 @@ export const allHandlers = {
 			await fs.mkdir(path, { recursive: true });
 		}
 		return { status: "success", message: `Directories created for project ${projectName}` };
+	},
+
+	browse: async ({ url }) => {
+		let browser;
+		try {
+			browser = await chromium.launch({ headless: true });
+			const context = await browser.newContext({
+				userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+			});
+			const page = await context.newPage();
+
+			// Navigate and wait for content
+			await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+
+			// Remove noisy elements
+			await page.evaluate(() => {
+				const tagsToRemove = ["script", "style", "nav", "footer", "iframe", "noscript", "header"];
+				tagsToRemove.forEach(tag => {
+					const elements = document.getElementsByTagName(tag);
+					for (let i = elements.length - 1; i >= 0; i--) {
+						elements[i].parentNode.removeChild(elements[i]);
+					}
+				});
+			});
+
+			const content = await page.content();
+			const turndownService = new TurndownService({
+				headingStyle: "atx",
+				codeBlockStyle: "fenced"
+			});
+			
+			const markdown = turndownService.turndown(content);
+
+			return { 
+				status: "success", 
+				url, 
+				content: markdown.substring(0, 30000) // Truncate to avoid context overflow
+			};
+		} catch (error) {
+			return { status: "error", message: `Failed to browse ${url}: ${error.message}` };
+		} finally {
+			if (browser) await browser.close();
+		}
 	}
 };

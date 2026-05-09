@@ -5,6 +5,8 @@
 	"dependencies": {
 		"@google/generative-ai": "^0.21.0",
 		"@modelcontextprotocol/sdk": "^1.0.0",
-		"mongodb": "^6.0.0"
+		"mongodb": "^6.0.0",
+		"playwright": "^1.43.1",
+		"turndown": "^7.1.3"
 	}
 }

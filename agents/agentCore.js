@@ -255,6 +255,9 @@ export class DynamicAgent {
 	}
 
 	async executeConversation(session) {
+		const sessionId = session._id.toString();
+		const projectName = session.metadata?.projectName || "default-project";
+
 		// Prepare history from session.messages
 		const messages = (session.messages || []).map(m => ({
 			role: m.role === "user" ? "user" : "agent",
@@ -270,16 +273,47 @@ export class DynamicAgent {
 			messages.unshift({ role: "user", content: `Summary of previous discussion: ${session.summary}` });
 		}
 
-		try {
-			const result = await this.callModel(messages, this.tools);
-			return result.text;
-		} catch (error) {
-			await this.log(session._id.toString(), "error", "Conversation Error", { 
-				error: error.message,
-				cause: error.cause ? (error.cause.message || error.cause) : null
-			});
-			return `Error: ${error.message}`;
+		let isComplete = false;
+		let finalResponse = "";
+		let history = [...messages];
+
+		while (!isComplete) {
+			try {
+				const result = await this.callModel(history, this.tools);
+				
+				if (result.text) {
+					finalResponse = result.text;
+					history.push({ role: "agent", content: result.text });
+				}
+
+				if (result.toolCalls && result.toolCalls.length > 0) {
+					const toolResults = [];
+					for (const call of result.toolCalls) {
+						const { name, args } = call;
+						const toolResult = await allHandlers[name]({
+							...args,
+							sessionId,
+							projectName,
+							agentId: this.id,
+							agentRole: this.role,
+							metadata: session.metadata
+						});
+						toolResults.push(`Tool ${name} result: ${JSON.stringify(toolResult)}`);
+					}
+					history.push({ role: "user", content: toolResults.join("\n\n") });
+				} else {
+					isComplete = true;
+				}
+			} catch (error) {
+				await this.log(sessionId, "error", "Conversation Error", { 
+					error: error.message,
+					cause: error.cause ? (error.cause.message || error.cause) : null
+				});
+				return `Error: ${error.message}`;
+			}
 		}
+
+		return finalResponse;
 	}
 
 	async processTask(inboundTask) {
