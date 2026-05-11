@@ -1,5 +1,6 @@
 import { MongoClient, ObjectId } from "mongodb";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import http from "http";
 import { config } from "../config.js";
 import { allHandlers } from "../tools/common.js";
 
@@ -90,19 +91,46 @@ export class DynamicAgent {
 		}
 
 		try {
-			const response = await fetch(url, {
+			const urlObj = new URL(url);
+			const requestBody = JSON.stringify(body);
+			const options = {
+				hostname: urlObj.hostname,
+				port: urlObj.port || 80,
+				path: urlObj.pathname + (urlObj.search || ""),
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
-				signal: AbortSignal.timeout(1800000) // 30 minute timeout for slow RPi generation
+				headers: {
+					"Content-Type": "application/json",
+					"Content-Length": Buffer.byteLength(requestBody)
+				}
+			};
+
+			const data = await new Promise((resolve, reject) => {
+				const req = http.request(options, (res) => {
+					let responseData = "";
+					res.on("data", (chunk) => { responseData += chunk; });
+					res.on("end", () => {
+						if (res.statusCode >= 200 && res.statusCode < 300) {
+							try {
+								resolve(JSON.parse(responseData));
+							} catch (e) {
+								reject(new Error(`Failed to parse Ollama response: ${responseData}`));
+							}
+						} else {
+							reject(new Error(`Ollama API Error (${res.statusCode}): ${responseData}`));
+						}
+					});
+				});
+
+				req.on("error", (e) => reject(e));
+				req.setTimeout(1800000, () => {
+					req.destroy();
+					reject(new Error("Ollama Request Timeout (30 minutes)"));
+				});
+
+				req.write(requestBody);
+				req.end();
 			});
 
-			if (!response.ok) {
-				const errorText = await response.text();
-				throw new Error(`Ollama API Error (${response.status}): ${errorText}`);
-			}
-
-			const data = await response.json();
 			const choice = data.choices[0];
 			
 			return {
