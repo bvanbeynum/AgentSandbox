@@ -4,14 +4,16 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { MongoClient, ObjectId } from "mongodb";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { chromium } from "playwright";
+import TurndownService from "turndown";
 import { config } from "../config.js";
 
 const execPromise = promisify(exec);
 
 export const allHandlers = {
-	writeFile: async ({ path, content, projectName }) => {
+	writeFile: async ({ path: filePath, content, projectName }) => {
 		const baseDir = `${config.paths.projects}/${projectName}`;
-		const fullPath = `${baseDir}/${path}`;
+		const fullPath = `${baseDir}/${filePath}`;
 
 		await fs.mkdir(fullPath.split("/").slice(0, -1).join("/"), { recursive: true });
 		await fs.writeFile(fullPath, content, "utf8");
@@ -228,5 +230,135 @@ export const allHandlers = {
 		} finally {
 			if (browser) await browser.close();
 		}
+	},
+
+	StockScanner: async ({ action, market = "america", filters = [], sort, columns, limit = 50 }) => {
+		const AVAILABLE_FILTERS = {
+			"close": { description: "Last/Closing price of the stock", type: "number" },
+			"change": { description: "Daily price change percentage", type: "number" },
+			"change_abs": { description: "Daily absolute price change value", type: "number" },
+			"volume": { description: "Current session's trading volume", type: "number" },
+			"average_volume_10d_calc": { description: "10-day average trading volume", type: "number" },
+			"average_volume_30d_calc": { description: "30-day average trading volume", type: "number" },
+			"relative_volume_10d_calc": { description: "Relative volume (compared to 10-day average)", type: "number" },
+			"high": { description: "Daily high price", type: "number" },
+			"low": { description: "Daily low price", type: "number" },
+			"open": { description: "Daily open price", type: "number" },
+			"exchange": { description: "Stock Exchange (e.g. NASDAQ, NYSE, AMEX)", type: "string" },
+			"sector": { description: "Economic sector (e.g. Technology, Finance, Health Services)", type: "string" },
+			"industry": { description: "Industry group (e.g. Software, Biotechnology)", type: "string" },
+			"market_cap_basic": { description: "Market Capitalization in USD", type: "number" },
+			"price_earnings_ttm": { description: "Trailing P/E ratio", type: "number" },
+			"earnings_per_share_basic_ttm": { description: "Trailing twelve months EPS", type: "number" },
+			"dividend_yield_recent": { description: "Recent dividend yield percentage", type: "number" },
+			"beta_1_year": { description: "1-year beta coefficient", type: "number" },
+			"price_sales_ratio": { description: "Price to Sales Ratio", type: "number" },
+			"price_book_ratio": { description: "Price to Book Ratio", type: "number" },
+			"debt_to_equity": { description: "Debt to Equity Ratio", type: "number" },
+			"net_income": { description: "Net Income", type: "number" },
+			"RSI": { description: "Relative Strength Index (14-period)", type: "number" },
+			"recommendation_mark": { description: "Technical Rating (e.g. BUY, STRONG_BUY, SELL, STRONG_SELL, NEUTRAL)", type: "string" },
+			"price_52w_high": { description: "52-Week High price", type: "number" },
+			"price_52w_low": { description: "52-Week Low price", type: "number" }
+		};
+
+		if (action === "list_filters") {
+			return {
+				status: "success",
+				filters: AVAILABLE_FILTERS,
+				supported_operations: [
+					"equal", "nequal", "greater", "egreater", "less", "eless",
+					"in_range", "not_in_range", "in_list", "not_in_list"
+				],
+				message: "Available filters listed successfully."
+			};
+		}
+
+		if (action === "scan") {
+			try {
+				let types = ["stock"];
+				if (market === "crypto" || market === "forex") {
+					types = [];
+				}
+
+				const defaultColumns = ["name", "close", "change", "volume", "market_cap_basic"];
+				const selectColumns = columns && columns.length > 0 ? columns : defaultColumns;
+
+				// TradingView requires "name" column or similar to be selected to list candidates.
+				// Let's ensure "name" is in columns so symbols are recognizable.
+				if (!selectColumns.includes("name")) {
+					selectColumns.unshift("name");
+				}
+
+				const payload = {
+					filter: filters.map(f => ({
+						left: f.left,
+						operation: f.operation,
+						right: f.right
+					})),
+					options: { lang: "en" },
+					markets: [market],
+					symbols: {
+						query: { types },
+						tickers: []
+					},
+					columns: selectColumns,
+					sort: sort || { sortBy: "market_cap_basic", sortOrder: "desc" },
+					range: [0, limit ? Math.min(limit, 100) : 50]
+				};
+
+				const response = await fetch(`https://scanner.tradingview.com/${market}/scan`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+					},
+					body: JSON.stringify(payload)
+				});
+
+				if (!response.ok) {
+					const errorText = await response.text();
+					return {
+						status: "error",
+						message: `TradingView Scanner API error (${response.status}): ${errorText}`
+					};
+				}
+
+				const resultData = await response.json();
+				if (!resultData.data || !Array.isArray(resultData.data)) {
+					return {
+						status: "success",
+						candidates: [],
+						totalCount: resultData.totalCount || 0,
+						message: "No candidates matched the criteria."
+					};
+				}
+
+				const candidates = resultData.data.map(item => {
+					const candidate = { symbol: item.s };
+					selectColumns.forEach((col, idx) => {
+						candidate[col] = item.d[idx];
+					});
+					return candidate;
+				});
+
+				return {
+					status: "success",
+					candidates,
+					totalCount: resultData.totalCount || 0,
+					message: `Found ${candidates.length} matching candidates.`
+				};
+			} catch (error) {
+				return {
+					status: "error",
+					message: `Failed to execute TradingView scan: ${error.message}`
+				};
+			}
+		}
+
+		return {
+			status: "error",
+			message: `Invalid action: ${action}. Use 'list_filters' or 'scan'.`
+		};
 	}
 };
