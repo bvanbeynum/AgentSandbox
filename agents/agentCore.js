@@ -41,19 +41,58 @@ export class DynamicAgent {
 			tools: tools.length > 0 ? [{ functionDeclarations: tools }] : []
 		});
 
-		// Map messages to Gemini history format
-		const history = messages.slice(0, -1).map(m => ({
-			role: m.role === "user" ? "user" : "model",
-			parts: [{ text: m.content }]
-		}));
-		const latestMessage = messages[messages.length - 1].content;
+		const contents = messages.map(m => {
+			if (m.role === "user") {
+				if (m.toolResponses && m.toolResponses.length > 0) {
+					return {
+						role: "user",
+						parts: m.toolResponses.map(tr => ({
+							functionResponse: {
+								name: tr.name,
+								response: { response: tr.response }
+							}
+						}))
+					};
+				}
+				return {
+					role: "user",
+					parts: [{ text: m.content || "" }]
+				};
+			} else { // role === "agent"
+				const parts = [];
+				if (m.content) {
+					parts.push({ text: m.content });
+				}
+				if (m.toolCalls && m.toolCalls.length > 0) {
+					parts.push(...m.toolCalls.map(tc => ({
+						functionCall: {
+							name: tc.name,
+							args: tc.args
+						}
+					})));
+				}
+				if (parts.length === 0) {
+					parts.push({ text: "" });
+				}
+				return {
+					role: "model",
+					parts
+				};
+			}
+		});
 
-		const chat = model.startChat({ history });
-		const result = await chat.sendMessage(latestMessage);
+		const result = await model.generateContent({ contents });
 		const response = result.response;
 		
+		let text = "";
+		try {
+			text = response.text().trim();
+		} catch (e) {
+			// Suppress error if no text content is returned (expected for tool calls)
+		}
+		
 		return {
-			text: response.text().trim(),
+			text,
 			toolCalls: response.functionCalls()?.map(call => ({
 				name: call.name,
 				args: call.args
@@ -66,12 +105,44 @@ export class DynamicAgent {
 		
 		// Map messages to OpenAI format
 		const formattedMessages = [
-			{ role: "system", content: this.instructions },
-			...messages.map(m => ({
-				role: m.role === "agent" ? "assistant" : m.role,
-				content: m.content
-			}))
+			{ role: "system", content: this.instructions }
 		];
+
+		for (const m of messages) {
+			if (m.role === "user") {
+				if (m.toolResponses && m.toolResponses.length > 0) {
+					for (const tr of m.toolResponses) {
+						formattedMessages.push({
+							role: "tool",
+							tool_call_id: tr.id || "call_0",
+							name: tr.name,
+							content: JSON.stringify(tr.response)
+						});
+					}
+				} else {
+					formattedMessages.push({
+						role: "user",
+						content: m.content || ""
+					});
+				}
+			} else { // role === "agent"
+				const msg = {
+					role: "assistant",
+					content: m.content || null
+				};
+				if (m.toolCalls && m.toolCalls.length > 0) {
+					msg.tool_calls = m.toolCalls.map(tc => ({
+						id: tc.id,
+						type: "function",
+						function: {
+							name: tc.name,
+							arguments: JSON.stringify(tc.args)
+						}
+					}));
+				}
+				formattedMessages.push(msg);
+			}
+		}
 
 		const body = {
 			model: modelName,
@@ -137,7 +208,8 @@ export class DynamicAgent {
 				text: choice.message.content?.trim() || "",
 				toolCalls: choice.message.tool_calls?.map(tc => ({
 					name: tc.function.name,
-					args: JSON.parse(tc.function.arguments)
+					args: JSON.parse(tc.function.arguments),
+					id: tc.id
 				})) || []
 			};
 		} catch (error) {
@@ -309,15 +381,21 @@ export class DynamicAgent {
 			try {
 				const result = await this.callModel(history, this.tools);
 				
+				// Push agent message including content and any toolCalls
+				history.push({
+					role: "agent",
+					content: result.text || "",
+					toolCalls: result.toolCalls && result.toolCalls.length > 0 ? result.toolCalls : undefined
+				});
+
 				if (result.text) {
 					finalResponse = result.text;
-					history.push({ role: "agent", content: result.text });
 				}
 
 				if (result.toolCalls && result.toolCalls.length > 0) {
-					const toolResults = [];
+					const toolResponses = [];
 					for (const call of result.toolCalls) {
-						const { name, args } = call;
+						const { name, args, id } = call;
 						const toolResult = await allHandlers[name]({
 							...args,
 							sessionId,
@@ -326,9 +404,17 @@ export class DynamicAgent {
 							agentRole: this.role,
 							metadata: session.metadata
 						});
-						toolResults.push(`Tool ${name} result: ${JSON.stringify(toolResult)}`);
+						toolResponses.push({
+							name,
+							response: toolResult,
+							id
+						});
 					}
-					history.push({ role: "user", content: toolResults.join("\n\n") });
+					// Push user turn with tool responses
+					history.push({
+						role: "user",
+						toolResponses
+					});
 				} else {
 					isComplete = true;
 				}
@@ -429,16 +515,22 @@ export class DynamicAgent {
 			try {
 				const result = await this.callModel(history, this.tools);
 				
+				// Push agent message including content and any toolCalls
+				history.push({
+					role: "agent",
+					content: result.text || "",
+					toolCalls: result.toolCalls && result.toolCalls.length > 0 ? result.toolCalls : undefined
+				});
+
 				if (result.text) {
 					await this.log(taskId, "info", "Reasoning Output", { text: result.text });
 					finalResponse = result.text;
-					history.push({ role: "agent", content: result.text });
 				}
 
 				if (result.toolCalls && result.toolCalls.length > 0) {
-					const toolResults = [];
+					const toolResponses = [];
 					for (const call of result.toolCalls) {
-						const { name, args } = call;
+						const { name, args, id } = call;
 						const toolResult = await allHandlers[name]({
 							...args,
 							taskId,
@@ -453,10 +545,17 @@ export class DynamicAgent {
 							return toolResult.message || "Execution paused.";
 						}
 
-						toolResults.push(`Tool ${name} result: ${JSON.stringify(toolResult)}`);
+						toolResponses.push({
+							name,
+							response: toolResult,
+							id
+						});
 					}
-					// Add tool results as a user-like message to continue the reasoning
-					history.push({ role: "user", content: toolResults.join("\n\n") });
+					// Push user turn with tool responses
+					history.push({
+						role: "user",
+						toolResponses
+					});
 				} else {
 					isComplete = true;
 				}
