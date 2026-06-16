@@ -193,9 +193,9 @@ export class DynamicAgent {
 				});
 
 				req.on("error", (e) => reject(e));
-				req.setTimeout(1800000, () => {
+				req.setTimeout(3600000, () => {
 					req.destroy();
-					reject(new Error("Ollama Request Timeout (30 minutes)"));
+					reject(new Error("Ollama Request Timeout (1 hour)"));
 				});
 
 				req.write(requestBody);
