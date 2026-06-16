@@ -81,9 +81,32 @@ export const allHandlers = {
 			await client.connect();
 			const db = client.db(config.db.dbName);
 
+			// Look up target agent by name
+			let targetAgent = await db.collection("agents").findOne({ name: to });
+			if (!targetAgent && ObjectId.isValid(to)) {
+				targetAgent = await db.collection("agents").findOne({ _id: new ObjectId(to) });
+			}
+
+			if (!targetAgent) {
+				return { status: "error", message: `Agent with name or ID '${to}' not found.` };
+			}
+			const targetAgentId = targetAgent._id.toString();
+
+			// Look up source agent by name if applicable
+			let resolvedFrom = from;
+			if (from) {
+				let sourceAgent = await db.collection("agents").findOne({ name: from });
+				if (!sourceAgent && ObjectId.isValid(from)) {
+					sourceAgent = await db.collection("agents").findOne({ _id: new ObjectId(from) });
+				}
+				if (sourceAgent) {
+					resolvedFrom = sourceAgent._id.toString();
+				}
+			}
+
 			await db.collection("tasks").insertOne({
-				from: from,
-				to: to,
+				from: resolvedFrom,
+				to: targetAgentId,
 				status: "pending",
 				payload: {
 					instruction: instruction,
@@ -93,7 +116,7 @@ export const allHandlers = {
 				created: new Date()
 			});
 
-			return { status: "success", message: `Task assigned to ${to}` };
+			return { status: "success", message: `Task assigned to ${to} (${targetAgentId})` };
 		} finally {
 			await client.close();
 		}
@@ -105,8 +128,19 @@ export const allHandlers = {
 			await client.connect();
 			const db = client.db(config.db.dbName);
 
+			// Look up target agent by name
+			let targetAgent = await db.collection("agents").findOne({ name: to });
+			if (!targetAgent && ObjectId.isValid(to)) {
+				targetAgent = await db.collection("agents").findOne({ _id: new ObjectId(to) });
+			}
+
+			if (!targetAgent) {
+				return { status: "error", message: `Agent with name or ID '${to}' not found.` };
+			}
+			const targetAgentId = targetAgent._id.toString();
+
 			const taskDoc = {
-				to: to,
+				to: targetAgentId,
 				status: (dependencies && dependencies.length > 0) ? "blocked" : "pending",
 				payload: {
 					instruction: instruction,
@@ -120,7 +154,7 @@ export const allHandlers = {
 			
 			return { 
 				status: "success", 
-				message: `Task created for ${to}. ID: ${result.insertedId}`,
+				message: `Task created for ${to} (${targetAgentId}). ID: ${result.insertedId}`,
 				taskId: result.insertedId.toString()
 			};
 		} finally {

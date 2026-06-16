@@ -41,12 +41,12 @@ export class DynamicAgent {
 			tools: tools.length > 0 ? [{ functionDeclarations: tools }] : []
 		});
 
-		const contents = messages.map(m => {
-			if (m.role === "user") {
-				if (m.toolResponses && m.toolResponses.length > 0) {
+		const contents = messages.map(message => {
+			if (message.role === "user") {
+				if (message.toolResponses && message.toolResponses.length > 0) {
 					return {
 						role: "user",
-						parts: m.toolResponses.map(tr => ({
+						parts: message.toolResponses.map(tr => ({
 							functionResponse: {
 								name: tr.name,
 								response: { response: tr.response }
@@ -56,15 +56,15 @@ export class DynamicAgent {
 				}
 				return {
 					role: "user",
-					parts: [{ text: m.content || "" }]
+					parts: [{ text: message.content || "" }]
 				};
 			} else { // role === "agent"
 				const parts = [];
-				if (m.content) {
-					parts.push({ text: m.content });
+				if (message.content) {
+					parts.push({ text: message.content });
 				}
-				if (m.toolCalls && m.toolCalls.length > 0) {
-					parts.push(...m.toolCalls.map(tc => ({
+				if (message.toolCalls && message.toolCalls.length > 0) {
+					parts.push(...message.toolCalls.map(tc => ({
 						functionCall: {
 							name: tc.name,
 							args: tc.args
@@ -108,10 +108,10 @@ export class DynamicAgent {
 			{ role: "system", content: this.instructions }
 		];
 
-		for (const m of messages) {
-			if (m.role === "user") {
-				if (m.toolResponses && m.toolResponses.length > 0) {
-					for (const tr of m.toolResponses) {
+		for (const message of messages) {
+			if (message.role === "user") {
+				if (message.toolResponses && message.toolResponses.length > 0) {
+					for (const tr of message.toolResponses) {
 						formattedMessages.push({
 							role: "tool",
 							tool_call_id: tr.id || "call_0",
@@ -122,16 +122,16 @@ export class DynamicAgent {
 				} else {
 					formattedMessages.push({
 						role: "user",
-						content: m.content || ""
+						content: message.content || ""
 					});
 				}
 			} else { // role === "agent"
 				const msg = {
 					role: "assistant",
-					content: m.content || null
+					content: message.content || null
 				};
-				if (m.toolCalls && m.toolCalls.length > 0) {
-					msg.tool_calls = m.toolCalls.map(tc => ({
+				if (message.toolCalls && message.toolCalls.length > 0) {
+					msg.tool_calls = message.toolCalls.map(tc => ({
 						id: tc.id,
 						type: "function",
 						function: {
